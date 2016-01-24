@@ -5,7 +5,9 @@
 varDateCreated="1/23/2015"
 varDateLastMod="1/24/2016"
 # 1/24/2016 - Added --full option so session renegotiation and compression could be removed from standard output for space. Also indented HTML.
+# 1/25/2016 2 - Changed output to check for weak ciphers by default. Added --all-ciphers option to include all supported ciphers in output.
 
+# NOTE - Current ciphers current identified with: grep -E 'SSLv2|SSLv3| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
 # Create temporary directory for processing
 varYMDHMS=$(date +%F-%H-%M-%S)
@@ -17,6 +19,8 @@ varOutFile="sslscanalyzer-$varYMDHM.html"
 # Default values for options
 varFull="N"
 varQuiet="N"
+varDoCiphers="WEAK"
+varCipherText="Weak Ciphers"
 
 function fnUsage {
   echo
@@ -36,6 +40,8 @@ function fnUsage {
   echo "-q             Optional 'quiet' switch. Disables pause for confirmation at the start of"
   echo "               the script, as well as the option to open the output file at the end."
   echo
+  echo "--all-ciphers  Show all supported ciphers in the report, instead of just weak ciphers."
+  echo
   echo "--full         Include session renegotiation and compression checks in the output table."
   echo
   exit
@@ -44,7 +50,7 @@ function fnUsage {
 function fnProcessInFile {
 
   # Sanitize input file to remove sslscan color coding if necessary
-  cat -A "$varInFile" | tr -d '\$' | sed 's/\^\[\[0m//g' | sed 's/\^\[\[1\;34m//g' | sed 's/\^\[\[33m//g' | sed 's/\^\[\[31m//g' | sed 's/\^\[\[32m//g' > $varTemp/InFile.txt
+  cat -A "$varInFile" | tr -d '\$' | sed 's/\^\[\[0m//g' | sed 's/\^\[\[31m//g' | sed 's/\^\[\[32m//g'| sed 's/\^\[\[33m//g'| sed 's/\^\[\[1\;34m//g' | sed 's/\^\[\[35m//g' | sed 's/\^\[\[41m//g'  > $varTemp/InFile.txt
   varCleanInFile="$varTemp/InFile.txt"
   varParsed="$varTemp/parsed.txt"
   varUnsortedHosts="$varTemp/unsorted-hosts.txt"
@@ -74,8 +80,15 @@ function fnProcessInFile {
 
     varCheckCiphers=$(echo "$varLine" | grep '^Accepted')
     if [ "$varCheckCiphers" != "" ]; then
-      varCiphers=$(echo "$varCheckCiphers" | awk '{print $2,"-",$3,$4,"-",$5}')
-      echo "$varHost,grep4Ciphers,$varCiphers" >> "$varParsed"
+      if [ "$varDoCiphers" = "ALL" ]; then
+        varCiphers=$(echo "$varCheckCiphers" | awk '{print $2,"-",$3,$4,"-",$5}')
+        echo "$varHost,grep4Ciphers,$varCiphers" >> "$varParsed"
+      elif [ "$varDoCiphers" = "WEAK" ]; then
+        varCiphers=$(echo "$varCheckCiphers" | grep -E 'SSLv2|SSLv3| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH' | awk '{print $2,"-",$3,$4,"-",$5}')
+        if [ "$varCiphers" != "" ]; then 
+          echo "$varHost,grep4Ciphers,$varCiphers" >> "$varParsed"
+        fi
+      fi
     fi
 
     varCheckIssuers=$(echo "$varLine" | grep '^Issuer:' | grep -v '=')
@@ -132,7 +145,7 @@ function fnProcessResultsFull {
   echo "      td {font-family: verdana, sans-serif;" >> "$varOutFile"
   echo "        vertical-align: top;" >> "$varOutFile"
   echo "        font-size: small;}" >> "$varOutFile"
-  echo "      td.heading {background-color: #5588EE;" >> "$varOutFile"
+  echo "      td.heading {background-color: #3399FF;" >> "$varOutFile"
   echo "        font-weight: bold;}" >> "$varOutFile"
   echo "      a {color: #000000;}" >> "$varOutFile"
   echo "    </style>" >> "$varOutFile"
@@ -151,7 +164,7 @@ function fnProcessResultsFull {
   echo "        <td class='heading'>Session Renegotiation</td>" >> "$varOutFile"
   echo "        <td class='heading'>Compression</td>" >> "$varOutFile"
   echo "        <td class='heading'>Heartbleed</td>" >> "$varOutFile"
-  echo "        <td class='heading' width='350'>Supported Ciphers</td>" >> "$varOutFile"
+  echo "        <td class='heading' width='350'>$varCipherText</td>" >> "$varOutFile"
   echo "        <td class='heading'>Issuer</td>" >> "$varOutFile"
   echo "        <td class='heading'>Signature Algorithm</td>" >> "$varOutFile"
   echo "        <td class='heading'>Key Strength</td>" >> "$varOutFile"
@@ -263,7 +276,7 @@ function fnProcessResults2 {
   echo "      td {font-family: verdana, sans-serif;" >> "$varOutFile"
   echo "        vertical-align: top;" >> "$varOutFile"
   echo "        font-size: small;}" >> "$varOutFile"
-  echo "      td.heading {background-color: #5588EE;" >> "$varOutFile"
+  echo "      td.heading {background-color: #3399FF;" >> "$varOutFile"
   echo "        font-weight: bold;}" >> "$varOutFile"
   echo "      a {color: #000000;}" >> "$varOutFile"
   echo "    </style>" >> "$varOutFile"
@@ -280,7 +293,7 @@ function fnProcessResults2 {
   echo "      </tr>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
   echo "        <td class='heading'>Heartbleed</td>" >> "$varOutFile"
-  echo "        <td class='heading' width='350'>Supported Ciphers</td>" >> "$varOutFile"
+  echo "        <td class='heading' width='350'>$varCipherText</td>" >> "$varOutFile"
   echo "        <td class='heading'>Issuer</td>" >> "$varOutFile"
   echo "        <td class='heading'>Signature Algorithm</td>" >> "$varOutFile"
   echo "        <td class='heading'>Key Strength</td>" >> "$varOutFile"
@@ -369,6 +382,10 @@ while [ "$1" != "" ]; do
       ;;
     --full )
       varFull="Y"
+      ;;
+    --all-ciphers )
+      varDoCiphers="ALL"
+      varCipherText="Supported Ciphers"
       ;;
     -h )
       fnUsage
