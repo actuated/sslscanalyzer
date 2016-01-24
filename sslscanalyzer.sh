@@ -6,7 +6,8 @@ varDateCreated="1/23/2015"
 varDateLastMod="1/24/2016"
 # 1/24/2016 - Added --full option so session renegotiation and compression could be removed from standard output for space. Also indented HTML.
 # 1/24/2016 2 - Changed output to check for weak ciphers by default. Added --all-ciphers option to include all supported ciphers in output.
-# 1/24/2016 - Added --cert-detail option, created default short function to condense certificate details into one table cell.
+# 1/24/2016 3 - Added --cert-detail option, created default short function to condense certificate details into one table cell.
+# 1/24/2016 4 - Changed heartbleed and cipher output to indent properly in the HTML source.
 
 # NOTE - Current ciphers current identified with: grep -E 'SSLv2|SSLv3| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
@@ -160,7 +161,7 @@ function fnProcessResultsFull {
   echo "  <body>" >> "$varOutFile"
   echo "    <table width='100%' cellpadding='4'>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
-  echo "        <td colspan='9' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
+  echo "        <td colspan='9' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
   echo "      </tr>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
   echo "        <td rowspan='2' class='heading'>Host:Port</td>" >> "$varOutFile"
@@ -207,8 +208,10 @@ function fnProcessResultsFull {
     if [ "$varTestGrep3" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print $3 "<br>"}')
-      echo "        <td>$varGrep3</td>" >> "$varOutFile"
+      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          " $3 "<br>"}')
+      echo "        <td>" >> "$varOutFile"
+      echo "$varGrep3" >> "$varOutFile"
+      echo "        </td>" >> "$varOutFile"
     fi
 
     # Check for ciphers for this host
@@ -216,8 +219,10 @@ function fnProcessResultsFull {
     if [ "$varTestGrep4" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print $3 "<br>"}')
-      echo "        <td>$varGrep4</td>" >> "$varOutFile"
+      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          " $3 "<br>"}')
+      echo "        <td>" >> "$varOutFile"
+      echo "$varGrep4" >> "$varOutFile"
+      echo "        </td>" >> "$varOutFile"
     fi
 
     # Check for issuer for this host
@@ -291,7 +296,7 @@ function fnProcessResultsMid {
   echo "  <body>" >> "$varOutFile"
   echo "    <table width='100%' cellpadding='4'>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
-  echo "        <td colspan='7' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
+  echo "        <td colspan='7' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
   echo "      </tr>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
   echo "        <td rowspan='2' class='heading'>Host:Port</td>" >> "$varOutFile"
@@ -318,8 +323,10 @@ function fnProcessResultsMid {
     if [ "$varTestGrep3" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print $3 "<br>"}')
-      echo "        <td>$varGrep3</td>" >> "$varOutFile"
+      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          " $3 "<br>"}')
+      echo "        <td>" >> "$varOutFile"
+      echo "$varGrep3" >> "$varOutFile"
+      echo "        </td>" >> "$varOutFile"
     fi
 
     # Check for ciphers for this host
@@ -327,8 +334,10 @@ function fnProcessResultsMid {
     if [ "$varTestGrep4" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print $3 "<br>"}')
-      echo "        <td>$varGrep4</td>" >> "$varOutFile"
+      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          " $3 "<br>"}')
+      echo "        <td>" >> "$varOutFile"
+      echo "$varGrep4" >> "$varOutFile"
+      echo "        </td>" >> "$varOutFile"
     fi
 
     # Check for issuer for this host
@@ -402,7 +411,7 @@ function fnProcessResultsShort {
   echo "  <body>" >> "$varOutFile"
   echo "    <table width='100%' cellpadding='4'>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
-  echo "        <td colspan='4' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
+  echo "        <td colspan='4' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
   echo "      </tr>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
   echo "        <td rowspan='2' class='heading'>Host:Port</td>" >> "$varOutFile"
@@ -425,8 +434,10 @@ function fnProcessResultsShort {
     if [ "$varTestGrep3" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print $3 "<br>"}')
-      echo "        <td>$varGrep3</td>" >> "$varOutFile"
+      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          " $3 "<br>"}')
+      echo "        <td>" >> "$varOutFile"
+      echo "$varGrep3" >> "$varOutFile"
+      echo "        </td>" >> "$varOutFile"
     fi
 
     # Check for ciphers for this host
@@ -434,8 +445,10 @@ function fnProcessResultsShort {
     if [ "$varTestGrep4" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print $3 "<br>"}')
-      echo "        <td>$varGrep4</td>" >> "$varOutFile"
+      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          " $3 "<br>"}')
+      echo "        <td>" >> "$varOutFile"
+      echo "$varGrep4" >> "$varOutFile"
+      echo "        </td>" >> "$varOutFile"
     fi
 
     echo "        <td>" >> "$varOutFile"
