@@ -5,7 +5,8 @@
 varDateCreated="1/23/2015"
 varDateLastMod="1/24/2016"
 # 1/24/2016 - Added --full option so session renegotiation and compression could be removed from standard output for space. Also indented HTML.
-# 1/25/2016 2 - Changed output to check for weak ciphers by default. Added --all-ciphers option to include all supported ciphers in output.
+# 1/24/2016 2 - Changed output to check for weak ciphers by default. Added --all-ciphers option to include all supported ciphers in output.
+# 1/24/2016 - Added --cert-detail option, created default short function to condense certificate details into one table cell.
 
 # NOTE - Current ciphers current identified with: grep -E 'SSLv2|SSLv3| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
@@ -21,6 +22,7 @@ varFull="N"
 varQuiet="N"
 varDoCiphers="WEAK"
 varCipherText="Weak Ciphers"
+varCertDetail="COMBINED"
 
 function fnUsage {
   echo
@@ -42,7 +44,12 @@ function fnUsage {
   echo
   echo "--all-ciphers  Show all supported ciphers in the report, instead of just weak ciphers."
   echo
+  echo "--cert-detail  Break certificate details out into separate columns. By default, details"
+  echo "               are included (issuer, signature algorithm, keylength, and expiration), but"
+  echo "               condensed into one table cell."
+  echo
   echo "--full         Include session renegotiation and compression checks in the output table."
+  echo "               Assumes --cert-detail."
   echo
   exit
 }
@@ -260,7 +267,7 @@ function fnProcessResultsFull {
 
 }
 
-function fnProcessResults2 {
+function fnProcessResultsMid {
 
   # Make sure varSorted/varSortedHosts files were created
   if [ ! -f "$varSorted" ]; then echo "Error: Couldn't parse any results from '$varInFile'."; echo; return; fi
@@ -371,6 +378,103 @@ function fnProcessResults2 {
 
 }
 
+function fnProcessResultsShort {
+
+  # Make sure varSorted/varSortedHosts files were created
+  if [ ! -f "$varSorted" ]; then echo "Error: Couldn't parse any results from '$varInFile'."; echo; return; fi
+  if [ ! -f "$varSortedHosts" ]; then echo "Error: Couldn't parse any results from '$varInFile'."; echo; return; fi
+
+  # Write beginning of HTML file
+  echo "<html>" >> "$varOutFile"
+  echo "  <head>" >> "$varOutFile"
+  echo "    <title>sslscanalyzer.sh - Ted R (github: actuated)</title>" >> "$varOutFile"
+  echo "    <style>" >> "$varOutFile"
+  echo "      table, td {border: 2px solid black;" >> "$varOutFile"
+  echo "        border-collapse: collapse;}" >> "$varOutFile"
+  echo "      td {font-family: verdana, sans-serif;" >> "$varOutFile"
+  echo "        vertical-align: top;" >> "$varOutFile"
+  echo "        font-size: small;}" >> "$varOutFile"
+  echo "      td.heading {background-color: #3399FF;" >> "$varOutFile"
+  echo "        font-weight: bold;}" >> "$varOutFile"
+  echo "      a {color: #000000;}" >> "$varOutFile"
+  echo "    </style>" >> "$varOutFile"
+  echo "  </head>" >> "$varOutFile"
+  echo "  <body>" >> "$varOutFile"
+  echo "    <table width='100%' cellpadding='4'>" >> "$varOutFile"
+  echo "      <tr>" >> "$varOutFile"
+  echo "        <td colspan='4' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
+  echo "      </tr>" >> "$varOutFile"
+  echo "      <tr>" >> "$varOutFile"
+  echo "        <td rowspan='2' class='heading'>Host:Port</td>" >> "$varOutFile"
+  echo "        <td colspan='2' class='heading'>SSL Server</td>" >> "$varOutFile"
+  echo "        <td rowspan='2' class='heading'>Certificate</td>" >> "$varOutFile"
+  echo "      </tr>" >> "$varOutFile"
+  echo "      <tr>" >> "$varOutFile"
+  echo "        <td class='heading'>Heartbleed</td>" >> "$varOutFile"
+  echo "        <td class='heading'>$varCipherText</td>" >> "$varOutFile"
+  echo "      </tr>" >> "$varOutFile"
+
+  # Process results for each host
+  while read varThisHost; do
+
+    echo "      <tr>" >> "$varOutFile"
+    echo "        <td>$varThisHost</td>" >> "$varOutFile"
+
+    # Check for heartbleed for this host
+    varTestGrep3=$(grep "$varThisHost" "$varSorted" | grep 'grep3Heartbleed' | wc -l)
+    if [ "$varTestGrep3" = "0" ]; then
+      echo "        <td></td>" >> "$varOutFile"
+    else
+      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print $3 "<br>"}')
+      echo "        <td>$varGrep3</td>" >> "$varOutFile"
+    fi
+
+    # Check for ciphers for this host
+    varTestGrep4=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | wc -l)
+    if [ "$varTestGrep4" = "0" ]; then
+      echo "        <td></td>" >> "$varOutFile"
+    else
+      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print $3 "<br>"}')
+      echo "        <td>$varGrep4</td>" >> "$varOutFile"
+    fi
+
+    echo "        <td>" >> "$varOutFile"
+    # Check for issuer for this host
+    varTestGrep5=$(grep "$varThisHost" "$varSorted" | grep 'grep5Issuer' | wc -l)
+    if [ "$varTestGrep5" != "0" ]; then
+      varGrep5=$(grep "$varThisHost" "$varSorted"| grep 'grep5Issuer' | awk -F "," '{print $3 "<br>"}')
+      echo "          <b>Issuer:</b> $varGrep5" >> "$varOutFile"
+    fi
+    # Check for signature algorithm for this host
+    varTestGrep6=$(grep "$varThisHost" "$varSorted" | grep 'grep6SignatureAlgorithm' | wc -l)
+    if [ "$varTestGrep6" != "0" ]; then
+      varGrep6=$(grep "$varThisHost" "$varSorted"| grep 'grep6SignatureAlgorithm' | awk -F "," '{print $3 "<br>"}')
+      echo "          <b>Signature Algorithm:</b> $varGrep6" >> "$varOutFile"
+    fi
+    # Check for rsa key strength for this host
+    varTestGrep7=$(grep "$varThisHost" "$varSorted" | grep 'grep7RSAKeyStrength' | wc -l)
+    if [ "$varTestGrep7" != "0" ]; then
+      varGrep7=$(grep "$varThisHost" "$varSorted"| grep 'grep7RSAKeyStrength' | awk -F "," '{print $3 "<br>"}')
+      echo "          <b>RSA Key Strength:</b> $varGrep7" >> "$varOutFile"
+    fi
+    # Check for expiration for this host
+    varTestGrep8=$(grep "$varThisHost" "$varSorted" | grep 'grep8Expiration' | wc -l)
+    if [ "$varTestGrep8" != "0" ]; then
+      varGrep8=$(grep "$varThisHost" "$varSorted"| grep 'grep8Expiration' | awk -F "," '{print $3 "<br>"}')
+      echo "          <b>Expiration:</b> $varGrep8" >> "$varOutFile"
+    fi
+    echo "        </td>">> "$varOutFile"
+    echo "      </tr>" >> "$varOutFile"
+
+  done < "$varSortedHosts"
+
+  # Write end of HTML file
+  echo "    </table>" >> "$varOutFile"
+  echo "  </body>" >> "$varOutFile"
+  echo "</html>" >> "$varOutFile"  
+
+}
+
 varInFile="$1"
 if [ ! -f "$varInFile" ]; then echo; echo "Error: Input file '$varInFile' does not exist."; fnUsage; fi
 shift
@@ -382,10 +486,15 @@ while [ "$1" != "" ]; do
       ;;
     --full )
       varFull="Y"
+      varCertDetail="SEPARATE"
       ;;
     --all-ciphers )
       varDoCiphers="ALL"
       varCipherText="Supported Ciphers"
+      ;;
+    --cert-detail )
+      varCertDetail="SEPARATE"
+      varFull="N"
       ;;
     -h )
       fnUsage
@@ -408,7 +517,8 @@ mkdir "$varTemp"
 
 fnProcessInFile
 if [ "$varFull" = "Y" ]; then fnProcessResultsFull; fi
-if [ "$varFull" = "N" ]; then fnProcessResults2; fi
+if [ "$varFull" = "N" ] && [ "$varCertDetail" = "SEPARATE" ]; then fnProcessResultsMid; fi
+if [ "$varFull" = "N" ] && [ "$varCertDetail" = "COMBINED" ]; then fnProcessResultsShort; fi
 
 if [ "$varQuiet" = "N" ] && [ -f "$varOutFile" ]; then read -p "Open $varOutFile using sensible-browser? [Y/N] " varOpenOutput; echo; fi
 
