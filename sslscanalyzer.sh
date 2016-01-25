@@ -4,12 +4,6 @@
 # Script to take an a file containing multiple sslscan results, and parse them for a summary table of findings
 varDateCreated="1/23/2015"
 varDateLastMod="1/24/2016"
-# 1/24/2016 - Added --full option so session renegotiation and compression could be removed from standard output for space. Also indented HTML.
-# 1/24/2016 2 - Changed output to check for weak ciphers by default. Added --all-ciphers option to include all supported ciphers in output.
-# 1/24/2016 3 - Added --cert-detail option, created default short function to condense certificate details into one table cell.
-# 1/24/2016 4 - Changed heartbleed and cipher output to indent properly in the HTML source.
-# 1/24/2016 5 - Removed --cert-detail option to limit output to short or full. Default short option now includes SSL server checks, just combined into one cell. Links are created for port 443/8443 hosts.
-# 1/24/2016 6 - Added status output and bulleted multi-value table cells (other than the bolded, labeled short-format certificate output.
 
 # NOTE - Weak ciphers currently identified with: grep -E 'SSLv2|SSLv3| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
@@ -392,31 +386,31 @@ function fnProcessResultsShort {
     varTestGrep9=$(grep "$varThisHost" "$varSorted" | grep 'grep9Subject' | wc -l)
     if [ "$varTestGrep9" != "0" ]; then
       varGrep9=$(grep "$varThisHost" "$varSorted"| grep 'grep9Subject' | awk -F "," '{print $3 "<br>"}')
-      echo "          <b>Subject:</b> $varGrep9" >> "$varOutFile"
+      echo "          &#8226;Subject: $varGrep9" >> "$varOutFile"
     fi
     # Check for issuer for this host
     varTestGrep5=$(grep "$varThisHost" "$varSorted" | grep 'grep5Issuer' | wc -l)
     if [ "$varTestGrep5" != "0" ]; then
       varGrep5=$(grep "$varThisHost" "$varSorted"| grep 'grep5Issuer' | awk -F "," '{print $3 "<br>"}')
-      echo "          <b>Issuer:</b> $varGrep5" >> "$varOutFile"
+      echo "          &#8226;Issuer: $varGrep5" >> "$varOutFile"
     fi
     # Check for signature algorithm for this host
     varTestGrep6=$(grep "$varThisHost" "$varSorted" | grep 'grep6SignatureAlgorithm' | wc -l)
     if [ "$varTestGrep6" != "0" ]; then
       varGrep6=$(grep "$varThisHost" "$varSorted"| grep 'grep6SignatureAlgorithm' | awk -F "," '{print $3 "<br>"}')
-      echo "          <b>Signature Algorithm:</b> $varGrep6" >> "$varOutFile"
+      echo "          &#8226;Signature Algorithm: $varGrep6" >> "$varOutFile"
     fi
     # Check for rsa key strength for this host
     varTestGrep7=$(grep "$varThisHost" "$varSorted" | grep 'grep7RSAKeyStrength' | wc -l)
     if [ "$varTestGrep7" != "0" ]; then
       varGrep7=$(grep "$varThisHost" "$varSorted"| grep 'grep7RSAKeyStrength' | awk -F "," '{print $3 "<br>"}')
-      echo "          <b>RSA Key Strength:</b> $varGrep7" >> "$varOutFile"
+      echo "          &#8226;RSA Key Strength: $varGrep7" >> "$varOutFile"
     fi
     # Check for expiration for this host
     varTestGrep8=$(grep "$varThisHost" "$varSorted" | grep 'grep8Expiration' | wc -l)
     if [ "$varTestGrep8" != "0" ]; then
       varGrep8=$(grep "$varThisHost" "$varSorted"| grep 'grep8Expiration' | awk -F "," '{print $3 "<br>"}')
-      echo "          <b>Expiration:</b> $varGrep8" >> "$varOutFile"
+      echo "          &#8226;Expiration: $varGrep8" >> "$varOutFile"
     fi
     echo "        </td>">> "$varOutFile"
     echo "      </tr>" >> "$varOutFile"
