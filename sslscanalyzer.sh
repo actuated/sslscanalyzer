@@ -9,6 +9,7 @@ varDateLastMod="1/24/2016"
 # 1/24/2016 3 - Added --cert-detail option, created default short function to condense certificate details into one table cell.
 # 1/24/2016 4 - Changed heartbleed and cipher output to indent properly in the HTML source.
 # 1/24/2016 5 - Removed --cert-detail option to limit output to short or full. Default short option now includes SSL server checks, just combined into one cell. Links are created for port 443/8443 hosts.
+# 1/24/2016 6 - Added status output and bulleted multi-value table cells (other than the bolded, labeled short-format certificate output.
 
 # NOTE - Weak ciphers currently identified with: grep -E 'SSLv2|SSLv3| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
@@ -54,6 +55,8 @@ function fnUsage {
 
 function fnProcessInFile {
 
+  echo -n "Processing input file..."
+
   # Sanitize input file to remove sslscan color coding if necessary
   cat -A "$varInFile" | tr -d '\$' | sed 's/\^\[\[0m//g' | sed 's/\^\[\[31m//g' | sed 's/\^\[\[32m//g'| sed 's/\^\[\[33m//g'| sed 's/\^\[\[1\;34m//g' | sed 's/\^\[\[35m//g' | sed 's/\^\[\[41m//g'  > $varTemp/InFile.txt
   varCleanInFile="$varTemp/InFile.txt"
@@ -66,7 +69,7 @@ function fnProcessInFile {
     varLastHost="$varHost"
     varHost=$(echo "$varLine" | grep 'Testing SSL server' | awk '{print $4 ":" $7}')
     if [ "$varHost" = "" ]; then varHost="$varLastHost"; fi
-    if [ "$varHost" != "$varLastHost" ]; then echo "$varHost" >> "$varUnsortedHosts"; fi
+    if [ "$varHost" != "$varLastHost" ]; then echo "$varHost" >> "$varUnsortedHosts"; echo -n "."; fi
 
     varCheckSessionRenegotiation=$(echo "$varLine" | grep -i 'session renegotiation')
     if [ "$varCheckSessionRenegotiation" != "" ]; then
@@ -138,9 +141,13 @@ function fnProcessInFile {
     cat "$varUnsortedHosts" | sort -V | uniq > "$varSortedHosts"
   fi
 
+  echo " Done."
+
 }
 
 function fnProcessResultsFull {
+
+  echo -n "Creating HTML report..."
 
   # Make sure varSorted/varSortedHosts files were created
   if [ ! -f "$varSorted" ]; then echo "Error: Couldn't parse any results from '$varInFile'."; echo; return; fi
@@ -186,6 +193,8 @@ function fnProcessResultsFull {
   # Process results for each host
   while read varThisHost; do
 
+    echo -n "."
+
     echo "      <tr>" >> "$varOutFile"
 
     # Make link for TCP 443 hosts, create table cell for host
@@ -220,7 +229,7 @@ function fnProcessResultsFull {
     if [ "$varTestGrep3" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          " $3 "<br>"}')
+      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          " "&#8226;" $3 "<br>"}')
       echo "        <td>" >> "$varOutFile"
       echo "$varGrep3" >> "$varOutFile"
       echo "        </td>" >> "$varOutFile"
@@ -231,7 +240,7 @@ function fnProcessResultsFull {
     if [ "$varTestGrep4" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          " $3 "<br>"}')
+      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          " "&#8226;" $3 "<br>"}')
       echo "        <td>" >> "$varOutFile"
       echo "$varGrep4" >> "$varOutFile"
       echo "        </td>" >> "$varOutFile"
@@ -291,9 +300,13 @@ function fnProcessResultsFull {
   echo "  </body>" >> "$varOutFile"
   echo "</html>" >> "$varOutFile"  
 
+  echo " Done."
+
 }
 
 function fnProcessResultsShort {
+
+  echo -n "Creating HTML report..."
 
   # Make sure varSorted/varSortedHosts files were created
   if [ ! -f "$varSorted" ]; then echo "Error: Couldn't parse any results from '$varInFile'."; echo; return; fi
@@ -329,6 +342,8 @@ function fnProcessResultsShort {
   # Process results for each host
   while read varThisHost; do
 
+    echo -n "."
+
     echo "      <tr>" >> "$varOutFile"
 
     # Make link for TCP 443 hosts, create table cell for host
@@ -344,19 +359,19 @@ function fnProcessResultsShort {
     # Check for session renegotiation for this host
     varTestGrep1=$(grep "$varThisHost" "$varSorted" | grep 'grep1SessionRenegotiation' | wc -l)
     if [ "$varTestGrep1" != "0" ]; then
-      varGrep1=$(grep "$varThisHost" "$varSorted"| grep 'grep1SessionRenegotiation' | awk -F "," '{print $3 "<br>"}')
+      varGrep1=$(grep "$varThisHost" "$varSorted"| grep 'grep1SessionRenegotiation' | awk -F "," '{print "&#8226;" $3 "<br>"}')
       echo "          $varGrep1" >> "$varOutFile"
     fi
     # Check for compression for this host
     varTestGrep2=$(grep "$varThisHost" "$varSorted" | grep 'grep2Compression' | wc -l)
     if [ "$varTestGrep2" != "0" ]; then
-      varGrep2=$(grep "$varThisHost" "$varSorted"| grep 'grep2Compression' | awk -F "," '{print $3 "<br>"}')
+      varGrep2=$(grep "$varThisHost" "$varSorted"| grep 'grep2Compression' | awk -F "," '{print "&#8226;" $3 "<br>"}')
       echo "          $varGrep2" >> "$varOutFile"
     fi
     # Check for heartbleed for this host
     varTestGrep3=$(grep "$varThisHost" "$varSorted" | grep 'grep3Heartbleed' | wc -l)
     if [ "$varTestGrep3" != "0" ]; then
-      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          " $3 "<br>"}')
+      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          " "&#8226;" $3 "<br>"}')
       echo "$varGrep3" >> "$varOutFile"
     fi
     echo "        </td>">> "$varOutFile"
@@ -366,7 +381,7 @@ function fnProcessResultsShort {
     if [ "$varTestGrep4" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          " $3 "<br>"}')
+      varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          " "&#8226;" $3 "<br>"}')
       echo "        <td>" >> "$varOutFile"
       echo "$varGrep4" >> "$varOutFile"
       echo "        </td>" >> "$varOutFile"
@@ -413,6 +428,8 @@ function fnProcessResultsShort {
   echo "  </body>" >> "$varOutFile"
   echo "</html>" >> "$varOutFile"  
 
+  echo " Done."
+
 }
 
 varInFile="$1"
@@ -455,7 +472,7 @@ fnProcessInFile
 if [ "$varFull" = "Y" ]; then fnProcessResultsFull; fi
 if [ "$varFull" = "N" ]; then fnProcessResultsShort; fi
 
-if [ "$varQuiet" = "N" ] && [ -f "$varOutFile" ]; then read -p "Open $varOutFile using sensible-browser? [Y/N] " varOpenOutput; echo; fi
+if [ "$varQuiet" = "N" ] && [ -f "$varOutFile" ]; then echo; read -p "Open $varOutFile using sensible-browser? [Y/N] " varOpenOutput; echo; fi
 
 case "$varOpenOutput" in
   y | Y)
