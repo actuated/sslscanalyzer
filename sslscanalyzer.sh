@@ -3,10 +3,13 @@
 # 1/23/2015 by Ted R (http://github.com/actuated)
 # Script to take an a file containing multiple sslscan results, and parse them for a summary table of findings
 varDateCreated="1/23/2015"
-varDateLastMod="1/25/2016"
-# Revised report options, replaced them with single -r option.
+varDateLastMod="1/28/2016"
+# 1/25/2015 - Revised report options, replaced them with single -r option.
+# 1/26/2015 - Added output option, and check for .htm/.html extension. Created CSS and font class tags to support color-coding for bad results in the future.
+# 1/28/2015 - Added if to make sure host is set before checking lines in fnProcessInFile, also added continue commands to stop that loop run when a match is found
+# NEED TO: Send HTML output to a temp file, the create a function for checking each temp HTML line for "bad" lines to change font classes to ssls-bad. Add --no-color option?
 
-# NOTE - Weak ciphers currently identified with: grep -E 'SSLv2|SSLv3| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
+# NOTE - Weak ciphers currently identified with: grep -E 'SSLv2|SSLv3|TLSv1\.0.*.CBC| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
 # Create temporary directory for processing
 varYMDHMS=$(date +%F-%H-%M-%S)
@@ -32,23 +35,26 @@ function fnUsage {
   echo
   echo "./sslscanalyzer.sh [input file] [options]"
   echo
-  echo "[input file]   Your input file. Required."
+  echo "[input file]   Your input file. Required. Must be the first parameter."
   echo
-  echo "-h             Displays this help/usage information."
+  echo "-r [value]     Report format options. See details below for supported values."
+  echo
+  echo "-o [filename]  Specify a custom output file. '.html' will be added if the filename does"
+  echo "               not end in '.html/.htm'. Default is 'sslscanalyzer-YYYY-MM-DD-HH-MM.html'."
   echo
   echo "-q             Optional 'quiet' switch. Disables pause for confirmation at the start of"
   echo "               the script, as well as the option to open the output file at the end."
   echo
-  echo "-r [value]     Report format options. See details below for supported values."
+  echo "-h             Displays this help/usage information."
   echo
   echo "===================================[ report settings ]==================================="
   echo
-  echo "Standard: Information combined and categorized into 3 columns for each host, including:"
+  echo "Standard: Fields are combined and categorized into 3 columns for each host, including:"
   echo "(1) SSL Server Checks - Session Renegotiation, Compression, and Heartbleed."
   echo "(2) Weak/accepted ciphers."
   echo "(3) Certificate - Subject, Issuer, Signature Algorithm, Key Space, and Expiration."
   echo
-  echo "Full: Columns are not combined, each value has its own column."
+  echo "Full: Fields (as named above) are not combined. Each has its own column."
   echo
   echo "Values for -r:"
   echo
@@ -78,64 +84,78 @@ function fnProcessInFile {
     varLastHost="$varHost"
     varHost=$(echo "$varLine" | grep 'Testing SSL server' | awk '{print $4 ":" $7}')
     if [ "$varHost" = "" ]; then varHost="$varLastHost"; fi
-    if [ "$varHost" != "$varLastHost" ]; then echo "$varHost" >> "$varUnsortedHosts"; echo -n "."; fi
+    if [ "$varHost" != "$varLastHost" ]; then echo "$varHost" >> "$varUnsortedHosts"; echo -n "."; continue; fi
 
-    varCheckSessionRenegotiation=$(echo "$varLine" | grep -i 'session renegotiation')
-    if [ "$varCheckSessionRenegotiation" != "" ]; then
-      echo "$varHost,grep1SessionRenegotiation,$varCheckSessionRenegotiation" >> "$varParsed"
-    fi
+    if [ "$varHost" != "" ]; then
 
-    varCheckCompression=$(echo "$varLine" | grep '^Compression ')
-    if [ "$varCheckCompression" != "" ]; then
-      echo "$varHost,grep2Compression,$varCheckCompression" >> "$varParsed"
-    fi
+      varCheckSessionRenegotiation=$(echo "$varLine" | grep -i 'session renegotiation')
+      if [ "$varCheckSessionRenegotiation" != "" ]; then
+        echo "$varHost,grep1SessionRenegotiation,$varCheckSessionRenegotiation" >> "$varParsed"
+        continue
+      fi
 
-    varCheckHeartbleed=$(echo "$varLine" | grep 'vulnerable to heartbleed')
-    if [ "$varCheckHeartbleed" != "" ]; then
-      echo "$varHost,grep3Heartbleed,$varCheckHeartbleed" >> "$varParsed"
-    fi
+      varCheckCompression=$(echo "$varLine" | grep '^Compression ')
+      if [ "$varCheckCompression" != "" ]; then
+        echo "$varHost,grep2Compression,$varCheckCompression" >> "$varParsed"
+        continue
+      fi
 
-    varCheckCiphers=$(echo "$varLine" | grep '^Accepted')
-    if [ "$varCheckCiphers" != "" ]; then
-      if [ "$varDoCiphers" = "ALL" ] || [ "$varDoCiphers" = "SUMMARY" ]; then
-        varCiphers=$(echo "$varCheckCiphers" | awk '{print $2,"-",$3,$4,"-",$5}')
-        echo "$varHost,grep4Ciphers,$varCiphers" >> "$varParsed"
-      elif [ "$varDoCiphers" = "WEAK" ]; then
-        varCiphers=$(echo "$varCheckCiphers" | grep -E 'SSLv2|SSLv3| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH' | awk '{print $2,"-",$3,$4,"-",$5}')
-        if [ "$varCiphers" != "" ]; then 
+      varCheckHeartbleed=$(echo "$varLine" | grep 'vulnerable to heartbleed')
+      if [ "$varCheckHeartbleed" != "" ]; then
+        echo "$varHost,grep3Heartbleed,$varCheckHeartbleed" >> "$varParsed"
+        continue
+      fi
+
+      varCheckCiphers=$(echo "$varLine" | grep '^Accepted')
+      if [ "$varCheckCiphers" != "" ]; then
+        if [ "$varDoCiphers" = "ALL" ] || [ "$varDoCiphers" = "SUMMARY" ]; then
+          varCiphers=$(echo "$varCheckCiphers" | awk '{print $2,"-",$3,$4,"-",$5}')
           echo "$varHost,grep4Ciphers,$varCiphers" >> "$varParsed"
+          continue
+        elif [ "$varDoCiphers" = "WEAK" ]; then
+          varCiphers=$(echo "$varCheckCiphers" | grep -E 'SSLv2|SSLv3|TLSv1\.0.*.CBC| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH' | awk '{print $2,"-",$3,$4,"-",$5}')
+          if [ "$varCiphers" != "" ]; then 
+            echo "$varHost,grep4Ciphers,$varCiphers" >> "$varParsed"
+            continue
+          fi
         fi
       fi
-    fi
 
-    varCheckIssuers=$(echo "$varLine" | grep '^Issuer:' | grep -v '=')
-    if [ "$varCheckIssuers" != "" ]; then
-      varIssuer=$(echo "$varCheckIssuers" | awk '{$1=""; print $0}' | sed -e 's/^[ \t]*//')
-      echo "$varHost,grep5Issuer,$varIssuer" >> "$varParsed"
-    fi
+      varCheckIssuers=$(echo "$varLine" | grep '^Issuer:' | grep -v '=')
+      if [ "$varCheckIssuers" != "" ]; then
+        varIssuer=$(echo "$varCheckIssuers" | awk '{$1=""; print $0}' | sed -e 's/^[ \t]*//')
+        echo "$varHost,grep5Issuer,$varIssuer" >> "$varParsed"
+        continue
+      fi
 
-    varCheckSignatureAlgorithm=$(echo "$varLine" | grep '^Signature Algorithm:')
-    if [ "$varCheckSignatureAlgorithm" != "" ]; then
-      varSignatureAlgorithm=$(echo "$varCheckSignatureAlgorithm" | awk '{print $3}')
-      echo "$varHost,grep6SignatureAlgorithm,$varSignatureAlgorithm" >> "$varParsed"
-    fi
+      varCheckSignatureAlgorithm=$(echo "$varLine" | grep '^Signature Algorithm:')
+      if [ "$varCheckSignatureAlgorithm" != "" ]; then
+        varSignatureAlgorithm=$(echo "$varCheckSignatureAlgorithm" | awk '{print $3}')
+        echo "$varHost,grep6SignatureAlgorithm,$varSignatureAlgorithm" >> "$varParsed"
+        continue
+      fi
 
-    varCheckRSAKeyStrength=$(echo "$varLine" | grep '^RSA Key Strength:')
-    if [ "$varCheckRSAKeyStrength" != "" ]; then
-      varRSAKeyStrength=$(echo "$varCheckRSAKeyStrength" | awk '{print $4}')
-      echo "$varHost,grep7RSAKeyStrength,$varRSAKeyStrength" >> "$varParsed"
-    fi
+      varCheckRSAKeyStrength=$(echo "$varLine" | grep '^RSA Key Strength:')
+      if [ "$varCheckRSAKeyStrength" != "" ]; then
+        varRSAKeyStrength=$(echo "$varCheckRSAKeyStrength" | awk '{print $4 " bits"}')
+        echo "$varHost,grep7RSAKeyStrength,$varRSAKeyStrength" >> "$varParsed"
+        continue
+      fi
 
-    varCheckExpiration=$(echo "$varLine" | grep 'Not valid after:')
-    if [ "$varCheckExpiration" != "" ]; then
-      varExpiration=$(echo "$varCheckExpiration" | awk '{print $4, $5, $6, $7}')
-      echo "$varHost,grep8Expiration,$varExpiration" >> "$varParsed"
-    fi
+      varCheckExpiration=$(echo "$varLine" | grep 'Not valid after:')
+      if [ "$varCheckExpiration" != "" ]; then
+        varExpiration=$(echo "$varCheckExpiration" | awk '{print $4, $5, $6, $7}')
+        echo "$varHost,grep8Expiration,$varExpiration" >> "$varParsed"
+        continue
+      fi
 
-    varCheckSubject=$(echo "$varLine" | grep '^Subject:' | grep -v '=')
-    if [ "$varCheckSubject" != "" ]; then
-      varSubject=$(echo "$varCheckSubject" | awk '{print $2}')
-      echo "$varHost,grep9Subject,$varSubject" >> "$varParsed"
+      varCheckSubject=$(echo "$varLine" | grep '^Subject:' | grep -v '=')
+      if [ "$varCheckSubject" != "" ]; then
+        varSubject=$(echo "$varCheckSubject" | awk '{print $2}')
+        echo "$varHost,grep9Subject,$varSubject" >> "$varParsed"
+        continue
+      fi
+
     fi
 
   done < "$varCleanInFile"
@@ -166,6 +186,8 @@ function fnHTMLHead {
   echo "      td.heading {background-color: #3399FF;" >> "$varOutFile"
   echo "        font-weight: bold;}" >> "$varOutFile"
   echo "      a {color: #000000;}" >> "$varOutFile"
+  echo "      .ssls-normal {color: #000000;}" >> "$varOutFile"
+  echo "      .ssls-bad {color: #FF0000;}" >> "$varOutFile"
   echo "    </style>" >> "$varOutFile"
   echo "  </head>" >> "$varOutFile"
 }
@@ -184,7 +206,7 @@ function fnProcessResultsFull {
   echo "  <body>" >> "$varOutFile"
   echo "    <table cellpadding='4'>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
-  echo "        <td colspan='10' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
+  echo "        <td colspan='10' class='heading'><font size='+1'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
   echo "      </tr>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
   echo "        <td rowspan='2' class='heading'>Host</td>" >> "$varOutFile"
@@ -226,7 +248,7 @@ function fnProcessResultsFull {
     if [ "$varTestGrep1" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep1=$(grep "$varThisHost" "$varSorted"| grep 'grep1SessionRenegotiation' | awk -F "," '{print $3 "<br>"}')
+      varGrep1=$(grep "$varThisHost" "$varSorted"| grep 'grep1SessionRenegotiation' | awk -F "," '{print "<font class=ssls-normal>" $3 "</font><br>"}')
       echo "        <td>$varGrep1</td>" >> "$varOutFile"
     fi
 
@@ -235,7 +257,7 @@ function fnProcessResultsFull {
     if [ "$varTestGrep2" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep2=$(grep "$varThisHost" "$varSorted"| grep 'grep2Compression' | awk -F "," '{print $3 "<br>"}')
+      varGrep2=$(grep "$varThisHost" "$varSorted"| grep 'grep2Compression' | awk -F "," '{print "<font class=ssls-normal>" $3 "</font><br>"}')
       echo "        <td>$varGrep2</td>" >> "$varOutFile"
     fi
 
@@ -244,7 +266,7 @@ function fnProcessResultsFull {
     if [ "$varTestGrep3" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          " "&#8226;" $3 "<br>"}')
+      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          <font class=ssls-normal>&#8226;" $3 "</font><br>"}')
       echo "        <td>" >> "$varOutFile"
       echo "$varGrep3" >> "$varOutFile"
       echo "        </td>" >> "$varOutFile"
@@ -258,31 +280,37 @@ function fnProcessResultsFull {
         SUMMARY )
           varFlagSSLV2=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'SSLv2')
           if [ "$varFlagSSLV2" = "" ]; then
-            echo "          &#8226;Any SSLv2: No<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;Any SSLv2: No</font><br>" >> "$varOutFile"
           else
-            echo "          &#8226;Any SSLv2: Yes<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;Any SSLv2: Yes</font><br>" >> "$varOutFile"
           fi
           varFlagSSLV3=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'SSLv3')
           if [ "$varFlagSSLV3" = "" ]; then
-            echo "          &#8226;Any SSLv3: No<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;Any SSLv3: No</font><br>" >> "$varOutFile"
           else
-            echo "          &#8226;Any SSLv3: Yes<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;Any SSLv3: Yes</font><br>" >> "$varOutFile"
+          fi
+          varFlagTLS10CBC=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.0' | grep -E 'CBC')
+          if [ "$varFlagTLS10CBC" = "" ]; then
+            echo "          <font class=ssls-normal>&#8226;TLSv1.0 with CBC: No</font><br>" >> "$varOutFile"
+          else
+            echo "          <font class=ssls-normal>&#8226;TLSv1.0 with CBC: Yes</font><br>" >> "$varOutFile"
           fi
           varFlagTLSWeak=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLS' | grep -E ' 0 bits| 40 bits| 56 bits| 112 bits')
           if [ "$varFlagTLSWeak" = "" ]; then
-            echo "          &#8226;TLS with &lt;128 Bit Ciphers: No<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;TLSv1.x with &lt;128 Bit Ciphers: No</font><br>" >> "$varOutFile"
           else
-            echo "          &#8226;TLS with &lt;128 Bit Ciphers: Yes<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;TLSv1.x with &lt;128 Bit Ciphers: Yes</font><br>" >> "$varOutFile"
           fi
           varFlagTLSCrypto=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLS' | grep -E 'RC4|AECDH|ADH')
           if [ "$varFlagTLSCrypto" = "" ]; then
-            echo "          &#8226;TLS with ADH, AECDH, or RC4: No<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;TLSv1.x with ADH, AECDH, or RC4: No</font><br>" >> "$varOutFile"
           else
-            echo "          &#8226;TLS with ADH, AECDH, or RC4: Yes<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;TLSv1.x with ADH, AECDH, or RC4: Yes</font><br>" >> "$varOutFile"
           fi
           ;;
         WEAK | ALL )
-          varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          " "&#8226;" $3 "<br>"}')
+          varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          <font class=ssls-normal>&#8226;" $3 "</font><br>"}')
           echo "$varGrep4" >> "$varOutFile"
           ;;
       esac
@@ -294,7 +322,7 @@ function fnProcessResultsFull {
     if [ "$varTestGrep9" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep9=$(grep "$varThisHost" "$varSorted"| grep 'grep9Subject' | awk -F "," '{print $3 "<br>"}')
+      varGrep9=$(grep "$varThisHost" "$varSorted"| grep 'grep9Subject' | awk -F "," '{print "<font class=ssls-normal>" $3 "</font><br>"}')
       echo "        <td>$varGrep9</td>" >> "$varOutFile"
     fi
 
@@ -303,7 +331,7 @@ function fnProcessResultsFull {
     if [ "$varTestGrep5" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep5=$(grep "$varThisHost" "$varSorted"| grep 'grep5Issuer' | awk -F "," '{print $3 "<br>"}')
+      varGrep5=$(grep "$varThisHost" "$varSorted"| grep 'grep5Issuer' | awk -F "," '{print "<font class=ssls-normal>" $3 "</font><br>"}')
       echo "        <td>$varGrep5</td>" >> "$varOutFile"
     fi
 
@@ -312,7 +340,7 @@ function fnProcessResultsFull {
     if [ "$varTestGrep6" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep6=$(grep "$varThisHost" "$varSorted"| grep 'grep6SignatureAlgorithm' | awk -F "," '{print $3 "<br>"}')
+      varGrep6=$(grep "$varThisHost" "$varSorted"| grep 'grep6SignatureAlgorithm' | awk -F "," '{print "<font class=ssls-normal>" $3 "</font><br>"}')
       echo "        <td>$varGrep6</td>" >> "$varOutFile"
     fi
 
@@ -321,7 +349,7 @@ function fnProcessResultsFull {
     if [ "$varTestGrep7" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep7=$(grep "$varThisHost" "$varSorted"| grep 'grep7RSAKeyStrength' | awk -F "," '{print $3 "<br>"}')
+      varGrep7=$(grep "$varThisHost" "$varSorted"| grep 'grep7RSAKeyStrength' | awk -F "," '{print "<font class=ssls-normal>" $3 "</font><br>"}')
       echo "        <td>$varGrep7</td>" >> "$varOutFile"
     fi
 
@@ -330,7 +358,7 @@ function fnProcessResultsFull {
     if [ "$varTestGrep8" = "0" ]; then
       echo "        <td></td>" >> "$varOutFile"
     else
-      varGrep8=$(grep "$varThisHost" "$varSorted"| grep 'grep8Expiration' | awk -F "," '{print $3 "<br>"}')
+      varGrep8=$(grep "$varThisHost" "$varSorted"| grep 'grep8Expiration' | awk -F "," '{print "<font class=ssls-normal>" $3 "</font><br>"}')
       echo "        <td>$varGrep8</td>" >> "$varOutFile"
     fi
 
@@ -361,7 +389,7 @@ function fnProcessResultsStd {
   echo "  <body>" >> "$varOutFile"
   echo "    <table cellpadding='4'>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
-  echo "        <td colspan='4' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
+  echo "        <td colspan='4' class='heading'><font size='+1'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutFile"
   echo "      </tr>" >> "$varOutFile"
   echo "      <tr>" >> "$varOutFile"
   echo "        <td class='heading'>Host</td>" >> "$varOutFile"
@@ -393,20 +421,20 @@ function fnProcessResultsStd {
     # Check for session renegotiation for this host
     varTestGrep1=$(grep "$varThisHost" "$varSorted" | grep 'grep1SessionRenegotiation' | wc -l)
     if [ "$varTestGrep1" != "0" ]; then
-      varGrep1=$(grep "$varThisHost" "$varSorted"| grep 'grep1SessionRenegotiation' | awk -F "," '{print "&#8226;" $3 "<br>"}')
+      varGrep1=$(grep "$varThisHost" "$varSorted"| grep 'grep1SessionRenegotiation' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
       echo "          $varGrep1" >> "$varOutFile"
     fi
     # Check for compression for this host
     varTestGrep2=$(grep "$varThisHost" "$varSorted" | grep 'grep2Compression' | wc -l)
     if [ "$varTestGrep2" != "0" ]; then
-      varGrep2=$(grep "$varThisHost" "$varSorted"| grep 'grep2Compression' | awk -F "," '{print "&#8226;" $3 "<br>"}')
+      varGrep2=$(grep "$varThisHost" "$varSorted"| grep 'grep2Compression' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
       echo "          $varGrep2" >> "$varOutFile"
     fi
     # Check for heartbleed for this host
     varTestGrep3=$(grep "$varThisHost" "$varSorted" | grep 'grep3Heartbleed' | wc -l)
     if [ "$varTestGrep3" != "0" ]; then
-      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          " "&#8226;" $3 "<br>"}')
-      echo "          $varGrep3" >> "$varOutFile"
+      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "          <font class=ssls-normal>&#8226;" $3 "</font><br>"}')
+      echo "$varGrep3" >> "$varOutFile"
     fi
     echo "        </td>">> "$varOutFile"
 
@@ -418,31 +446,37 @@ function fnProcessResultsStd {
         SUMMARY )
           varFlagSSLV2=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'SSLv2')
           if [ "$varFlagSSLV2" = "" ]; then
-            echo "          &#8226;Any SSLv2: No<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;Any SSLv2: No</font><br>" >> "$varOutFile"
           else
-            echo "          &#8226;Any SSLv2: Yes<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;Any SSLv2: Yes</font><br>" >> "$varOutFile"
           fi
           varFlagSSLV3=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'SSLv3')
           if [ "$varFlagSSLV3" = "" ]; then
-            echo "          &#8226;Any SSLv3: No<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;Any SSLv3: No</font><br>" >> "$varOutFile"
           else
-            echo "          &#8226;Any SSLv3: Yes<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;Any SSLv3: Yes</font><br>" >> "$varOutFile"
+          fi
+          varFlagTLS10CBC=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.0' | grep -E 'CBC')
+          if [ "$varFlagTLS10CBC" = "" ]; then
+            echo "          <font class=ssls-normal>&#8226;TLSv1.0 with CBC: No</font><br>" >> "$varOutFile"
+          else
+            echo "          <font class=ssls-normal>&#8226;TLSv1.0 with CBC: Yes</font><br>" >> "$varOutFile"
           fi
           varFlagTLSWeak=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLS' | grep -E ' 0 bits| 40 bits| 56 bits| 112 bits')
           if [ "$varFlagTLSWeak" = "" ]; then
-            echo "          &#8226;TLS with &lt;128 Bit Ciphers: No<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;TLSv1.x with &lt;128 Bit Ciphers: No</font><br>" >> "$varOutFile"
           else
-            echo "          &#8226;TLS with &lt;128 Bit Ciphers: Yes<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;TLSv1.x with &lt;128 Bit Ciphers: Yes</font><br>" >> "$varOutFile"
           fi
           varFlagTLSCrypto=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLS' | grep -E 'RC4|AECDH|ADH')
           if [ "$varFlagTLSCrypto" = "" ]; then
-            echo "          &#8226;TLS with ADH, AECDH, or RC4: No<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;TLSv1.x with ADH, AECDH, or RC4: No</font><br>" >> "$varOutFile"
           else
-            echo "          &#8226;TLS with ADH, AECDH, or RC4: Yes<br>" >> "$varOutFile"
+            echo "          <font class=ssls-normal>&#8226;TLSv1.x with ADH, AECDH, or RC4: Yes</font><br>" >> "$varOutFile"
           fi
           ;;
         WEAK | ALL )
-          varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          " "&#8226;" $3 "<br>"}')
+          varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "          " "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
           echo "$varGrep4" >> "$varOutFile"
           ;;
       esac
@@ -455,31 +489,31 @@ function fnProcessResultsStd {
     varTestGrep9=$(grep "$varThisHost" "$varSorted" | grep 'grep9Subject' | wc -l)
     if [ "$varTestGrep9" != "0" ]; then
       varGrep9=$(grep "$varThisHost" "$varSorted"| grep 'grep9Subject' | awk -F "," '{print $3 "<br>"}')
-      echo "          &#8226;Subject: $varGrep9" >> "$varOutFile"
+      echo "          <font class=ssls-normal>&#8226;Subject: $varGrep9</font>" >> "$varOutFile"
     fi
     # Check for issuer for this host
     varTestGrep5=$(grep "$varThisHost" "$varSorted" | grep 'grep5Issuer' | wc -l)
     if [ "$varTestGrep5" != "0" ]; then
       varGrep5=$(grep "$varThisHost" "$varSorted"| grep 'grep5Issuer' | awk -F "," '{print $3 "<br>"}')
-      echo "          &#8226;Issuer: $varGrep5" >> "$varOutFile"
+      echo "          <font class=ssls-normal>&#8226;Issuer: $varGrep5</font>" >> "$varOutFile"
     fi
     # Check for signature algorithm for this host
     varTestGrep6=$(grep "$varThisHost" "$varSorted" | grep 'grep6SignatureAlgorithm' | wc -l)
     if [ "$varTestGrep6" != "0" ]; then
       varGrep6=$(grep "$varThisHost" "$varSorted"| grep 'grep6SignatureAlgorithm' | awk -F "," '{print $3 "<br>"}')
-      echo "          &#8226;Signature Algorithm: $varGrep6" >> "$varOutFile"
+      echo "          <font class=ssls-normal>&#8226;Signature Algorithm: $varGrep6</font>" >> "$varOutFile"
     fi
     # Check for rsa key strength for this host
     varTestGrep7=$(grep "$varThisHost" "$varSorted" | grep 'grep7RSAKeyStrength' | wc -l)
     if [ "$varTestGrep7" != "0" ]; then
       varGrep7=$(grep "$varThisHost" "$varSorted"| grep 'grep7RSAKeyStrength' | awk -F "," '{print $3 "<br>"}')
-      echo "          &#8226;RSA Key Strength: $varGrep7" >> "$varOutFile"
+      echo "          <font class=ssls-normal>&#8226;RSA Key Strength: $varGrep7</font>" >> "$varOutFile"
     fi
     # Check for expiration for this host
     varTestGrep8=$(grep "$varThisHost" "$varSorted" | grep 'grep8Expiration' | wc -l)
     if [ "$varTestGrep8" != "0" ]; then
       varGrep8=$(grep "$varThisHost" "$varSorted"| grep 'grep8Expiration' | awk -F "," '{print $3 "<br>"}')
-      echo "          &#8226;Expiration: $varGrep8" >> "$varOutFile"
+      echo "          <font class=ssls-normal>&#8226;Expiration: $varGrep8</font>" >> "$varOutFile"
     fi
     echo "        </td>">> "$varOutFile"
 
@@ -511,6 +545,10 @@ while [ "$1" != "" ]; do
       ;;
     -h )
       fnUsage
+      ;;
+    -o )
+      shift
+      varOutFileInput="$1"
       ;;
     * )
       echo; echo "Error: Unrecognized parameter."; fnUsage
@@ -553,12 +591,22 @@ case "$varReportMode" in
     ;;
 esac
 
+if [ "$varOutFileInput" != "" ]; then
+  varOFIHTM=$(echo "$varOutFileInput" | grep -i '\.htm$')
+  varOFIHTML=$(echo "$varOutFileInput" | grep -i '\.html$')
+  if [ "$varOFIHTM" = "" ] && [ "$varOFIHTML" = "" ]; then
+    varOutFileInput="$varOutFileInput.html"
+  fi
+  varOutFile="$varOutFileInput"
+fi
+
 echo
 echo "=====================[ sslscanalyzer.sh - Ted R (github: actuated) ]====================="
 echo
 varCountServers=$(cat "$varInFile" | grep 'Testing SSL server' | wc -l)
 echo "Converting $varInFile ($varCountServers SSL server/s) to $varOutFile."
 echo
+if [ -f "$varOutFile" ]; then echo "Warning: Continuing will overwrite $varOutFile."; echo; fi
 if [ "$varQuiet" = "N" ]; then read -p "Press Enter to confirm..."; echo; fi
 mkdir "$varTemp"
 
