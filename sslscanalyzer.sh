@@ -2,12 +2,13 @@
 # sslscanalyzer.sh
 # 1/23/2015 by Ted R (http://github.com/actuated)
 # Script to take an a file containing multiple sslscan results, and parse them for a summary table of findings
-varDateCreated="1/23/2015"
+varDateCreated="1/23/2016"
 varDateLastMod="1/29/2016"
-# 1/25/2015 - Revised report options, replaced them with single -r option.
-# 1/26/2015 - Added output option, and check for .htm/.html extension. Created CSS and font class tags to support color-coding for bad results in the future.
-# 1/28/2015 - Added if to make sure host is set before checking lines in fnProcessInFile, also added continue commands to stop that loop run when a match is found.
-# 1/29/2015 - Added colorize function, does not work for: compression, issuer, expiration (yet). Added --no-color option.
+# 1/25/2016 - Revised report options, replaced them with single -r option.
+# 1/26/2016 - Added output option, and check for .htm/.html extension. Created CSS and font class tags to support color-coding for bad results in the future.
+# 1/28/2016 - Added if to make sure host is set before checking lines in fnProcessInFile, also added continue commands to stop that loop run when a match is found.
+# 1/29/2016 - Added colorize function, does not work for: compression, issuer, expiration (yet). Added --no-color option.
+# 1/30/2016 - Added certificate expiration check and redirected sensible-browser stderror to /dev/null.
 
 # NOTE - Weak ciphers currently identified with: grep -E 'SSLv2|SSLv3|TLSv1\.0.*.CBC| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
@@ -579,7 +580,59 @@ function fnColorize {
         if [ "$varOutCheckWeakCiphers" != "" ]; then varMarkThisBad="Y"; fi      
       fi
 
-      # EXPIRATION
+      varOutCheckCertExp=$(echo "$varLineInput" | grep -o '[[:alpha:]]*.[[:digit:]]*.[[:digit:]]*:[[:digit:]]*:[[:digit:]]*.[[:digit:]]*')
+      if [ "$varOutCheckCertExp" != "" ]; then
+        varCertExpPreCheckMonth=$(echo "$varOutCheckCertExp" | awk '{print $1}')
+        case "$varCertExpPreCheckMonth" in
+          Jan )
+            varOutCheckMonth="01"
+            ;;
+          Feb )
+            varOutCheckMonth="02"
+            ;;
+          Mar )
+            varOutCheckMonth="03"
+            ;;
+          Apr )
+            varOutCheckMonth="04"
+            ;;
+          May )
+            varOutCheckMonth="05"
+            ;;
+          Jun )
+            varOutCheckMonth="06"
+            ;;
+          Jul )
+            varOutCheckMonth="07"
+            ;;
+          Aug )
+            varOutCheckMonth="08"
+            ;;
+          Sep )
+            varOutCheckMonth="09"
+            ;;
+          Oct )
+            varOutCheckMonth="10"
+            ;;
+          Nov )
+            varOutCheckMonth="11"
+            ;;
+          Dec )
+            varOutCheckMonth="12"
+            ;;
+        esac
+        varCertExpPreCheckDay=$(echo "$varOutCheckCertExp" | awk '{print $2}')
+        let varCertExpPreCheckDay=varCertExpPreCheckDay+1
+        if [ "$varCertExpPreCheckDay" -le "9" ]; then
+          varOutCheckDay="0$varCertExpPreCheckDay"
+        else
+          varOutCheckDay="$varCertExpPreCheckDay"
+        fi
+        varOutCheckYear=$(echo "$varOutCheckCertExp" | awk '{print $4}')
+        varOutCheckYYYYMMDD="$varOutCheckYear$varOutCheckMonth$varOutCheckDay"
+        varOutCheckToday=$(date +%Y%m%d)
+        if [ "$varOutCheckYYYYMMDD" -le "$varOutCheckToday" ]; then varMarkThisBad="Y"; fi
+      fi
 
       if [ "$varMarkThisBad" = "Y" ]; then
         echo "$varLineInput" | sed 's/ssls-normal/ssls-bad/g' >> "$varOutFile"
@@ -687,7 +740,7 @@ if [ "$varQuiet" = "N" ] && [ -f "$varOutFile" ]; then echo; read -p "Open $varO
 
 case "$varOpenOutput" in
   y | Y)
-    sensible-browser "$varOutFile" &
+    sensible-browser "$varOutFile" 2> /dev/null &
     ;;
 esac
 
