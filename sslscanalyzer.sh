@@ -9,6 +9,7 @@ varDateLastMod="1/29/2016"
 # 1/28/2016 - Added if to make sure host is set before checking lines in fnProcessInFile, also added continue commands to stop that loop run when a match is found.
 # 1/29/2016 - Added colorize function, does not work for: compression, issuer, expiration (yet). Added --no-color option.
 # 1/30/2016 - Added certificate expiration check and redirected sensible-browser stderror to /dev/null.
+# 1/30/2016 - Added --do-sslscan option. Uses infile as list of targets, creates sslscan output file as /tmp/sslscanalyzer-YYYY-MM-DD-HH-MM-SS.txt, then continues with that as the infile.
 
 # NOTE - Weak ciphers currently identified with: grep -E 'SSLv2|SSLv3|TLSv1\.0.*.CBC| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
@@ -24,6 +25,7 @@ varOutFile="sslscanalyzer-$varYMDHM.html"
 varQuiet="N"
 varReportMode="0"
 varDoColor="Y"
+varDoSslScan="N"
 
 function fnUsage {
   echo
@@ -40,15 +42,18 @@ function fnUsage {
   echo
   echo "[input file]   Your input file. Required. Must be the first parameter."
   echo
-  echo "-r [value]     Report format options. See details below for supported values."
-  echo
   echo "-o [filename]  Specify a custom output file. '.html' will be added if the filename does"
   echo "               not end in '.html/.htm'. Default is 'sslscanalyzer-YYYY-MM-DD-HH-MM.html'."
   echo
-  echo "--no-color     Disable coloring 'bad' lines red."
-  echo
   echo "-q             Optional 'quiet' switch. Disables pause for confirmation at the start of"
   echo "               the script, as well as the option to open the output file at the end."
+  echo
+  echo "-r [value]     Report format options. See details below for supported values."
+  echo
+  echo "--no-color     Disable coloring 'bad' lines red."
+  echo
+  echo "--do-sslscan   Start by running 'sslscan --show-certificate'. Uses [input file] as the"
+  echo "               list of targets instead of a list of results."
   echo
   echo "-h             Displays this help/usage information."
   echo
@@ -648,6 +653,37 @@ function fnColorize {
 
 }
 
+function fnSslScan {
+
+  varCheckSslScanCmd=$(sslscan 2> /dev/null)
+  if [ "$varCheckSslScanCmd" != "" ]; then
+    
+    varCountSslScanLines=$(cat "$varInFile" | wc -l)
+    echo "Running 'sslscan --show-certificate' against $varInFile ($varCountSslScanLines lines)."
+    echo
+    if [ "$varQuiet" = "N" ]; then read -p "Press Enter to confirm..."; echo; fi
+
+    varSslScanResults="/tmp/sslscanalyzer-$varYMDHMS.txt"
+    echo -n "Running sslscan..."
+    while read varSslTarget; do
+      echo -n "."
+      (sslscan --show-certificate $varSslTarget) >> "$varSslScanResults"
+    done < "$varInFile"
+    echo " Done."
+    echo
+
+    if [ -f "$varSslScanResults" ]; then
+      varInFile="$varSslScanResults"
+    else
+      echo "Error: Did not create $varSslScanResults."; echo; exit
+    fi
+
+  else
+    echo "Error: Could not run 'sslscan'."; echo; exit
+  fi
+
+}
+
 varInFile="$1"
 if [ ! -f "$varInFile" ]; then echo; echo "Error: Input file '$varInFile' does not exist."; fnUsage; fi
 shift
@@ -670,6 +706,9 @@ while [ "$1" != "" ]; do
       ;;
     --no-color )
       varDoColor="N"
+      ;;
+    --do-sslscan )
+      varDoSslScan="Y"
       ;;
     * )
       echo; echo "Error: Unrecognized parameter."; fnUsage
@@ -724,8 +763,10 @@ fi
 echo
 echo "=====================[ sslscanalyzer.sh - Ted R (github: actuated) ]====================="
 echo
+if [ "$varDoSslScan" = "Y" ]; then fnSslScan; fi
 varCountServers=$(cat "$varInFile" | grep 'Testing SSL server' | wc -l)
-echo "Converting $varInFile ($varCountServers SSL server/s) to $varOutFile."
+if [ "$varDoSslScan" = "N" ]; then echo "Converting $varInFile ($varCountServers SSL server/s) to $varOutFile."; fi
+if [ "$varDoSslScan" = "Y" ]; then echo "Converting sslscan results ($varCountServers SSL server/s) to $varOutFile."; fi
 echo
 if [ -f "$varOutFile" ]; then echo "Warning: Continuing will overwrite $varOutFile."; echo; fi
 if [ "$varQuiet" = "N" ]; then read -p "Press Enter to confirm..."; echo; fi
@@ -745,6 +786,7 @@ case "$varOpenOutput" in
 esac
 
 rm -r "$varTemp"
+if [ "$varDoSslScan" = "Y" ]; then echo; echo "FYI: sslscan results are in $varSslScanResults"; fi
 echo
 echo "=========================================[ fin ]========================================="
 echo
