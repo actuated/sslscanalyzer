@@ -688,7 +688,7 @@ function fnSslScan {
     echo -n "Running sslscan..."
     while read varSslTarget; do
       echo -n "."
-      (sslscan --show-certificate $varSslTarget) >> "$varSslScanResults"
+      (sslscan --show-certificate "$varSslTarget") >> "$varSslScanResults"
     done < "$varInFile"
     echo " Done."
     echo
