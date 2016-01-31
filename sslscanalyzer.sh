@@ -10,6 +10,7 @@ varDateLastMod="1/29/2016"
 # 1/29/2016 - Added colorize function, does not work for: compression, issuer, expiration (yet). Added --no-color option.
 # 1/30/2016 - Added certificate expiration check and redirected sensible-browser stderror to /dev/null.
 # 1/30/2016 - Added --do-sslscan option. Uses infile as list of targets, creates sslscan output file as /tmp/sslscanalyzer-YYYY-MM-DD-HH-MM-SS.txt, then continues with that as the infile.
+# 1/31/2016 - Added ticking echo -n for colorize function, added check to SslScan function to check for old /tmp/ files and offer to delete if >5.
 
 # NOTE - Weak ciphers currently identified with: grep -E 'SSLv2|SSLv3|TLSv1\.0.*.CBC| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
@@ -133,6 +134,7 @@ function fnProcessInFile {
 
       varCheckIssuers=$(echo "$varLine" | grep '^Issuer:' | grep -v '=')
       if [ "$varCheckIssuers" != "" ]; then
+        echo -n "."
         varIssuer=$(echo "$varCheckIssuers" | awk '{$1=""; print $0}' | sed -e 's/^[ \t]*//')
         echo "$varHost,grep5Issuer,$varIssuer" >> "$varParsed"
         continue
@@ -546,11 +548,14 @@ function fnColorize {
 
   if [ "$varDoColor" = "Y" ]; then
 
-    echo -n "Colorizing 'bad' results... "
+    echo -n "Colorizing 'bad' results..."
  
     while read -r varLineInput; do
 
       varMarkThisBad="N"
+
+      varCheckIfNewRow=$(echo "$varLineInput" | grep "<tr>")
+      if [ "$varCheckIfNewRow" != "" ]; then echo -n "."; fi
 
       varOutCheckSessionReneg=$(echo "$varLineInput" | grep 'Insecure session renegotiation supported')
       if [ "$varOutCheckSessionReneg" != "" ]; then varMarkThisBad="Y"; fi
@@ -646,7 +651,7 @@ function fnColorize {
       fi
 
     done < "$varOutputTemp"
-    echo "Done."
+    echo " Done."
   else
     mv "$varOuputTemp" "$varOutFile"
   fi
@@ -654,6 +659,22 @@ function fnColorize {
 }
 
 function fnSslScan {
+
+  varCheckNumberOfTmpFiles=$(ls -l /tmp/sslscanalyzer-*.txt | wc -l)
+  if [ "$varCheckNumberOfTmpFiles" -ge "5" ] && [ "$varQuiet" = "N" ]; then
+    varDoDeleteTmp="N"
+    echo "There are $varCheckNumberOfTmpFiles sslscanalyzer-*.txt files in /tmp/."
+    read -p "Delete them all? [Y/N] " varDoDeleteTmp
+    case "$varDoDeleteTmp" in
+      y|Y)
+        rm /tmp/sslscanalyzer-*.txt
+        ;;
+    esac
+    echo
+  elif [ "$varCheckNumberOfTmpFiles" -ge "5" ] && [ "$varQuiet" = "Y" ]; then
+    echo "FYI: There are $varCheckNumberOfTmpFiles sslscanalyzer-*.txt files in /tmp/."
+    echo
+  fi
 
   varCheckSslScanCmd=$(sslscan 2> /dev/null)
   if [ "$varCheckSslScanCmd" != "" ]; then
@@ -781,12 +802,12 @@ if [ "$varQuiet" = "N" ] && [ -f "$varOutFile" ]; then echo; read -p "Open $varO
 
 case "$varOpenOutput" in
   y | Y)
-    sensible-browser "$varOutFile" 2> /dev/null &
+    sensible-browser "$varOutFile" >/dev/null 2>&1 &
     ;;
 esac
 
 rm -r "$varTemp"
-if [ "$varDoSslScan" = "Y" ]; then echo; echo "FYI: sslscan results are in $varSslScanResults"; fi
+if [ "$varDoSslScan" = "Y" ]; then echo; echo "FYI: Original sslscan results are in $varSslScanResults"; fi
 echo
 echo "=========================================[ fin ]========================================="
 echo
