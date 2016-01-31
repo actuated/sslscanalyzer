@@ -3,7 +3,7 @@
 # 1/23/2015 by Ted R (http://github.com/actuated)
 # Script to take an a file containing multiple sslscan results, and parse them for a summary table of findings
 varDateCreated="1/23/2016"
-varDateLastMod="1/29/2016"
+varDateLastMod="1/31/2016"
 # 1/25/2016 - Revised report options, replaced them with single -r option.
 # 1/26/2016 - Added output option, and check for .htm/.html extension. Created CSS and font class tags to support color-coding for bad results in the future.
 # 1/28/2016 - Added if to make sure host is set before checking lines in fnProcessInFile, also added continue commands to stop that loop run when a match is found.
