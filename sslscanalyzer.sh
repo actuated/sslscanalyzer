@@ -11,6 +11,7 @@ varDateLastMod="1/31/2016"
 # 1/30/2016 - Added certificate expiration check and redirected sensible-browser stderror to /dev/null.
 # 1/30/2016 - Added --do-sslscan option. Uses infile as list of targets, creates sslscan output file as /tmp/sslscanalyzer-YYYY-MM-DD-HH-MM-SS.txt, then continues with that as the infile.
 # 1/31/2016 - Added ticking echo -n for colorize function, added check to SslScan function to check for old /tmp/ files and offer to delete if >5.
+# 2/1/2016 - Added parsing check to identify issuers matching subjects, and full report td class to help find issuer field. Need to modify fnColorize to find and compare the issuer to the temp CSV file.
 
 # NOTE - Weak ciphers currently identified with: grep -E 'SSLv2|SSLv3|TLSv1\.0.*.CBC| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
@@ -173,6 +174,17 @@ function fnProcessInFile {
   done < "$varCleanInFile"
 
   if [ -f "$varParsed" ]; then
+    while read varParsedIssuerLine; do
+      varFindParsedIssuer=$(echo "$varParsedIssuerLine" | grep 'grep5Issuer')
+      if [ "$varFindParsedIssuer" != "" ]; then
+        varParsedIssuerHost=$(echo "$varFindParsedIssuer" | awk -F "," '{print $1}')
+        varParsedIssuer=$(echo "$varFindParsedIssuer" | awk -F "," '{print $3}')
+        varCheckParsedSubject=$(cat "$varParsed" | grep "$varParsedIssuerHost" | grep "grep9Subject" | grep "$varParsedIssuer")
+        if [ "$varCheckParsedSubject" != "" ]; then
+          echo "$varParsedIssuerHost,grep10IssuerMatchedSubject,$varParsedIssuer" >> "$varParsed"
+        fi
+      fi 
+    done < "$varParsed"
     varSorted="$varTemp/sorted.txt"
     cat "$varParsed" | sort -V | uniq > "$varSorted"
   fi
@@ -341,10 +353,10 @@ function fnProcessResultsFull {
     # Check for issuer for this host
     varTestGrep5=$(grep "$varThisHost" "$varSorted" | grep 'grep5Issuer' | wc -l)
     if [ "$varTestGrep5" = "0" ]; then
-      echo "<td></td>" >> "$varOutputTemp"
+      echo "<td class='FindIssuer'></td>" >> "$varOutputTemp"
     else
       varGrep5=$(grep "$varThisHost" "$varSorted"| grep 'grep5Issuer' | awk -F "," '{print "<font class=ssls-normal>" $3 "</font><br>"}')
-      echo "<td>$varGrep5</td>" >> "$varOutputTemp"
+      echo "<td class='FindIssuer'>$varGrep5</td>" >> "$varOutputTemp"
     fi
 
     # Check for signature algorithm for this host
@@ -519,7 +531,7 @@ function fnProcessResultsStd {
     varTestGrep7=$(grep "$varThisHost" "$varSorted" | grep 'grep7RSAKeyStrength' | wc -l)
     if [ "$varTestGrep7" != "0" ]; then
       varGrep7=$(grep "$varThisHost" "$varSorted"| grep 'grep7RSAKeyStrength' | awk -F "," '{print $3 "<br>"}')
-      echo "<font class=ssls-normal>&#8226;RSA Key Strength: $varGrep7</font>" >> "$varOutputTemp"
+      echo "<font class=ssls-normal>&#8226;Key Strength: $varGrep7</font>" >> "$varOutputTemp"
     fi
     # Check for expiration for this host
     varTestGrep8=$(grep "$varThisHost" "$varSorted" | grep 'grep8Expiration' | wc -l)
@@ -589,6 +601,8 @@ function fnColorize {
         varOutCheckWeakCiphers=$(echo "$varLineInput" | grep ' - ' | grep -E 'SSLv2|SSLv3|TLSv1\.0.*.CBC| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH')
         if [ "$varOutCheckWeakCiphers" != "" ]; then varMarkThisBad="Y"; fi      
       fi
+
+      # ISSUER MATCHING SUBJECT
 
       varOutCheckCertExp=$(echo "$varLineInput" | grep -o '[[:alpha:]]*.[[:digit:]]*.[[:digit:]]*:[[:digit:]]*:[[:digit:]]*.[[:digit:]]*')
       if [ "$varOutCheckCertExp" != "" ]; then
