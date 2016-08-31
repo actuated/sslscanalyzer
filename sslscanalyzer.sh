@@ -3,7 +3,7 @@
 # 1/23/2015 by Ted R (http://github.com/actuated)
 # Script to take an a file containing multiple sslscan results, and parse them for a summary table of findings
 varDateCreated="1/23/2016"
-varDateLastMod="1/31/2016"
+varDateLastMod="8/31/2016"
 # 1/25/2016 - Revised report options, replaced them with single -r option.
 # 1/26/2016 - Added output option, and check for .htm/.html extension. Created CSS and font class tags to support color-coding for bad results in the future.
 # 1/28/2016 - Added if to make sure host is set before checking lines in fnProcessInFile, also added continue commands to stop that loop run when a match is found.
@@ -12,8 +12,10 @@ varDateLastMod="1/31/2016"
 # 1/30/2016 - Added --do-sslscan option. Uses infile as list of targets, creates sslscan output file as /tmp/sslscanalyzer-YYYY-MM-DD-HH-MM-SS.txt, then continues with that as the infile.
 # 1/31/2016 - Added ticking echo -n for colorize function, added check to SslScan function to check for old /tmp/ files and offer to delete if >5.
 # 2/1/2016 - Added parsing check to identify issuers matching subjects, and full report td class to help find issuer field. Need to modify fnColorize to find and compare the issuer to the temp CSV file.
-
-# NOTE - Weak ciphers currently identified with: grep -E 'SSLv2|SSLv3|TLSv1\.0.*.CBC| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
+# 8/31/2016 - SSLSCAN output now shows preferred ciphers in with accepted ciphers, with "Preferred" instead of "Accepted". Changed detection of accepted ciphers.
+#           - Changed weak cipher detection and yes/no summaries to flag any TLS 1.0 or 1.1 as "bad", weak ciphers/enc as TLS 1.2 issues.
+#           - Added --no-server-checks to eliminate that column in short/started report types (0, 1, and 2).
+# NOTE - Weak ciphers currently identified with: grep -E 'SSLv2|SSLv3|TLSv1\.0|TLSv1\.1| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH'
 
 # Create temporary directory for processing
 varYMDHMS=$(date +%F-%H-%M-%S)
@@ -28,6 +30,7 @@ varQuiet="N"
 varReportMode="0"
 varDoColor="Y"
 varDoSslScan="N"
+varInclServerChecks="Y"
 
 function fnUsage {
   echo
@@ -42,22 +45,26 @@ function fnUsage {
   echo
   echo "./sslscanalyzer.sh [input file] [options]"
   echo
-  echo "[input file]   Your input file. Required. Must be the first parameter."
+  echo "[input file]        Your input file. Required. Must be the first parameter."
   echo
-  echo "-o [filename]  Specify a custom output file. '.html' will be added if the filename does"
-  echo "               not end in '.html/.htm'. Default is 'sslscanalyzer-YYYY-MM-DD-HH-MM.html'."
+  echo "-o [filename]       Specify a custom output file. '.html' will be added if the filename"
+  echo "                    does not end in '.html/.htm'. Default is"
+  echo "                    'sslscanalyzer-YYYY-MM-DD-HH-MM.html'."
   echo
-  echo "-q             Optional 'quiet' switch. Disables pause for confirmation at the start of"
-  echo "               the script, as well as the option to open the output file at the end."
+  echo "-q                  Optional 'quiet' switch. Disables pause for confirmation at the start"
+  echo "                    of the script, as well as the option to open the output file at the"
+  echo "                    end."
   echo
-  echo "-r [value]     Report format options. See details below for supported values."
+  echo "-r [value]          Report format options. See details below for supported values."
   echo
-  echo "--no-color     Disable coloring 'bad' lines red."
+  echo "--no-color          Disable coloring 'bad' lines red."
   echo
-  echo "--do-sslscan   Start by running 'sslscan --show-certificate'. Uses [input file] as the"
-  echo "               list of targets instead of a list of results."
+  echo "--do-sslscan        Start by running 'sslscan --show-certificate'. Uses [input file] as"
+  echo "                    the list of targets instead of a list of results."
   echo
-  echo "-h             Displays this help/usage information."
+  echo "--no-server-checks  Suppress server checks column for -r 0-2."
+  echo
+  echo "-h                  Displays this help/usage information."
   echo
   echo "===================================[ report settings ]==================================="
   echo
@@ -118,14 +125,14 @@ function fnProcessInFile {
         continue
       fi
 
-      varCheckCiphers=$(echo "$varLine" | grep '^Accepted')
+      varCheckCiphers=$(echo "$varLine" | grep -E '^Accepted|^Preferred')
       if [ "$varCheckCiphers" != "" ]; then
         if [ "$varDoCiphers" = "ALL" ] || [ "$varDoCiphers" = "SUMMARY" ]; then
           varCiphers=$(echo "$varCheckCiphers" | awk '{print $2,"-",$3,$4,"-",$5}')
           echo "$varHost,grep4Ciphers,$varCiphers" >> "$varParsed"
           continue
         elif [ "$varDoCiphers" = "WEAK" ]; then
-          varCiphers=$(echo "$varCheckCiphers" | grep -E 'SSLv2|SSLv3|TLSv1\.0.*.CBC| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH' | awk '{print $2,"-",$3,$4,"-",$5}')
+          varCiphers=$(echo "$varCheckCiphers" | grep -E 'SSLv2|SSLv3|TLSv1\.0|TLSv1\.1| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH' | awk '{print $2,"-",$3,$4,"-",$5}')
           if [ "$varCiphers" != "" ]; then 
             echo "$varHost,grep4Ciphers,$varCiphers" >> "$varParsed"
             continue
@@ -314,23 +321,29 @@ function fnProcessResultsFull {
           else
             echo "<font class=ssls-normal>&#8226;Any SSLv3: Yes</font><br>" >> "$varOutputTemp"
           fi
-          varFlagTLS10CBC=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.0' | grep -E 'CBC')
+          varFlagTLS10CBC=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.0')
           if [ "$varFlagTLS10CBC" = "" ]; then
-            echo "<font class=ssls-normal>&#8226;TLSv1.0 with CBC: No</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;Any TLSv1.0: No</font><br>" >> "$varOutputTemp"
           else
-            echo "<font class=ssls-normal>&#8226;TLSv1.0 with CBC: Yes</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;Any TLSv1.0: Yes</font><br>" >> "$varOutputTemp"
           fi
-          varFlagTLSWeak=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLS' | grep -E ' 0 bits| 40 bits| 56 bits| 112 bits')
+          varFlagTLS10CBC=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.1')
+          if [ "$varFlagTLS10CBC" = "" ]; then
+            echo "<font class=ssls-normal>&#8226;Any TLSv1.1: No</font><br>" >> "$varOutputTemp"
+          else
+            echo "<font class=ssls-normal>&#8226;Any TLSv1.1: Yes</font><br>" >> "$varOutputTemp"
+          fi
+          varFlagTLSWeak=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.2' | grep -E ' 0 bits| 40 bits| 56 bits| 112 bits')
           if [ "$varFlagTLSWeak" = "" ]; then
-            echo "<font class=ssls-normal>&#8226;TLSv1.x with &lt;128 Bit Ciphers: No</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;TLSv1.2 with &lt;128 Bit Ciphers: No</font><br>" >> "$varOutputTemp"
           else
-            echo "<font class=ssls-normal>&#8226;TLSv1.x with &lt;128 Bit Ciphers: Yes</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;TLSv1.2 with &lt;128 Bit Ciphers: Yes</font><br>" >> "$varOutputTemp"
           fi
-          varFlagTLSCrypto=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLS' | grep -E 'RC4|AECDH|ADH')
+          varFlagTLSCrypto=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.2' | grep -E 'RC4|AECDH|ADH')
           if [ "$varFlagTLSCrypto" = "" ]; then
-            echo "<font class=ssls-normal>&#8226;TLSv1.x with ADH, AECDH, or RC4: No</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;TLSv1.2 with ADH, AECDH, or RC4: No</font><br>" >> "$varOutputTemp"
           else
-            echo "<font class=ssls-normal>&#8226;TLSv1.x with ADH, AECDH, or RC4: Yes</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;TLSv1.2 with ADH, AECDH, or RC4: Yes</font><br>" >> "$varOutputTemp"
           fi
           ;;
         WEAK | ALL )
@@ -417,7 +430,7 @@ function fnProcessResultsStd {
   echo "</tr>" >> "$varOutputTemp"
   echo "<tr>" >> "$varOutputTemp"
   echo "<td class='heading'>Host</td>" >> "$varOutputTemp"
-  echo "<td class='heading'>SSL Server Checks</td>" >> "$varOutputTemp"
+  if [ "$varInclServerChecks" = "Y" ]; then echo "<td class='heading'>SSL Server Checks</td>" >> "$varOutputTemp"; fi
   echo "<td class='heading'>SSL Server: $varCipherText</td>" >> "$varOutputTemp"
   echo "<td class='heading'>Certificate</td>" >> "$varOutputTemp"
   echo "</tr>" >> "$varOutputTemp"
@@ -440,27 +453,29 @@ function fnProcessResultsStd {
     fi
     echo "</td>" >> "$varOutputTemp"
 
-    # Table Cell: Server Checks
-    echo "<td>" >> "$varOutputTemp"
-    # Check for session renegotiation for this host
-    varTestGrep1=$(grep "$varThisHost" "$varSorted" | grep 'grep1SessionRenegotiation' | wc -l)
-    if [ "$varTestGrep1" != "0" ]; then
-      varGrep1=$(grep "$varThisHost" "$varSorted"| grep 'grep1SessionRenegotiation' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
-      echo "$varGrep1" >> "$varOutputTemp"
+    if [ "$varInclServerChecks" = "Y" ]; then 
+      # Table Cell: Server Checks
+      echo "<td>" >> "$varOutputTemp"
+      # Check for session renegotiation for this host
+      varTestGrep1=$(grep "$varThisHost" "$varSorted" | grep 'grep1SessionRenegotiation' | wc -l)
+      if [ "$varTestGrep1" != "0" ]; then
+        varGrep1=$(grep "$varThisHost" "$varSorted"| grep 'grep1SessionRenegotiation' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
+        echo "$varGrep1" >> "$varOutputTemp"
+      fi
+      # Check for compression for this host
+      varTestGrep2=$(grep "$varThisHost" "$varSorted" | grep 'grep2Compression' | wc -l)
+      if [ "$varTestGrep2" != "0" ]; then
+        varGrep2=$(grep "$varThisHost" "$varSorted"| grep 'grep2Compression' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
+        echo "$varGrep2" >> "$varOutputTemp"
+      fi
+      # Check for heartbleed for this host
+      varTestGrep3=$(grep "$varThisHost" "$varSorted" | grep 'grep3Heartbleed' | wc -l)
+      if [ "$varTestGrep3" != "0" ]; then
+        varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
+        echo "$varGrep3" >> "$varOutputTemp"
+      fi
+      echo "</td>">> "$varOutputTemp"
     fi
-    # Check for compression for this host
-    varTestGrep2=$(grep "$varThisHost" "$varSorted" | grep 'grep2Compression' | wc -l)
-    if [ "$varTestGrep2" != "0" ]; then
-      varGrep2=$(grep "$varThisHost" "$varSorted"| grep 'grep2Compression' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
-      echo "$varGrep2" >> "$varOutputTemp"
-    fi
-    # Check for heartbleed for this host
-    varTestGrep3=$(grep "$varThisHost" "$varSorted" | grep 'grep3Heartbleed' | wc -l)
-    if [ "$varTestGrep3" != "0" ]; then
-      varGrep3=$(grep "$varThisHost" "$varSorted"| grep 'grep3Heartbleed' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
-      echo "$varGrep3" >> "$varOutputTemp"
-    fi
-    echo "</td>">> "$varOutputTemp"
 
     # Table Cell: Ciphers
     echo "<td>" >> "$varOutputTemp"
@@ -480,23 +495,29 @@ function fnProcessResultsStd {
           else
             echo "<font class=ssls-normal>&#8226;Any SSLv3: Yes</font><br>" >> "$varOutputTemp"
           fi
-          varFlagTLS10CBC=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.0' | grep -E 'CBC')
+          varFlagTLS10CBC=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.0')
           if [ "$varFlagTLS10CBC" = "" ]; then
-            echo "<font class=ssls-normal>&#8226;TLSv1.0 with CBC: No</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;Any TLSv1.0: No</font><br>" >> "$varOutputTemp"
           else
-            echo "<font class=ssls-normal>&#8226;TLSv1.0 with CBC: Yes</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;Any TLSv1.0: Yes</font><br>" >> "$varOutputTemp"
           fi
-          varFlagTLSWeak=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLS' | grep -E ' 0 bits| 40 bits| 56 bits| 112 bits')
+          varFlagTLS10CBC=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.1')
+          if [ "$varFlagTLS10CBC" = "" ]; then
+            echo "<font class=ssls-normal>&#8226;Any TLSv1.1: No</font><br>" >> "$varOutputTemp"
+          else
+            echo "<font class=ssls-normal>&#8226;Any TLSv1.1: Yes</font><br>" >> "$varOutputTemp"
+          fi
+          varFlagTLSWeak=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.2' | grep -E ' 0 bits| 40 bits| 56 bits| 112 bits')
           if [ "$varFlagTLSWeak" = "" ]; then
-            echo "<font class=ssls-normal>&#8226;TLSv1.x with &lt;128 Bit Ciphers: No</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;TLSv1.2 with &lt;128 Bit Ciphers: No</font><br>" >> "$varOutputTemp"
           else
-            echo "<font class=ssls-normal>&#8226;TLSv1.x with &lt;128 Bit Ciphers: Yes</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;TLSv1.2 with &lt;128 Bit Ciphers: Yes</font><br>" >> "$varOutputTemp"
           fi
-          varFlagTLSCrypto=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLS' | grep -E 'RC4|AECDH|ADH')
+          varFlagTLSCrypto=$(grep "$varThisHost" "$varSorted" | grep 'grep4Ciphers' | grep 'TLSv1\.2' | grep -E 'RC4|AECDH|ADH')
           if [ "$varFlagTLSCrypto" = "" ]; then
-            echo "<font class=ssls-normal>&#8226;TLSv1.x with ADH, AECDH, or RC4: No</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;TLSv1.2 with ADH, AECDH, or RC4: No</font><br>" >> "$varOutputTemp"
           else
-            echo "<font class=ssls-normal>&#8226;TLSv1.x with ADH, AECDH, or RC4: Yes</font><br>" >> "$varOutputTemp"
+            echo "<font class=ssls-normal>&#8226;TLSv1.2 with ADH, AECDH, or RC4: Yes</font><br>" >> "$varOutputTemp"
           fi
           ;;
         WEAK | ALL )
@@ -591,14 +612,16 @@ function fnColorize {
         if [ "$varOutCheckSSLv2_Summary" != "" ]; then varMarkThisBad="Y"; fi
         varOutCheckSSLv3_Summary=$(echo "$varLineInput" | grep 'Any SSLv3: Yes')
         if [ "$varOutCheckSSLv3_Summary" != "" ]; then varMarkThisBad="Y"; fi
-        varOutCheckTLSCBC_Summary=$(echo "$varLineInput" | grep 'TLSv1\.0 with CBC: Yes')
-        if [ "$varOutCheckTLSCBC_Summary" != "" ]; then varMarkThisBad="Y"; fi
-        varOutCheckTLS128_Summary=$(echo "$varLineInput" | grep 'TLSv1\.x with .*.128 Bit Ciphers: Yes')
+        varOutCheckTLS10_Summary=$(echo "$varLineInput" | grep 'Any TLSv1\.0: Yes')
+        if [ "$varOutCheckTLS10_Summary" != "" ]; then varMarkThisBad="Y"; fi
+        varOutCheckTLS11_Summary=$(echo "$varLineInput" | grep 'Any TLSv1\.1: Yes')
+        if [ "$varOutCheckTLS11_Summary" != "" ]; then varMarkThisBad="Y"; fi
+        varOutCheckTLS128_Summary=$(echo "$varLineInput" | grep 'TLSv1\.2 with .*.128 Bit Ciphers: Yes')
         if [ "$varOutCheckTLS128_Summary" != "" ]; then varMarkThisBad="Y"; fi
-        varOutCheckTLSEnc_Summary=$(echo "$varLineInput" | grep 'TLSv1.x with ADH, AECDH, or RC4: Yes')
+        varOutCheckTLSEnc_Summary=$(echo "$varLineInput" | grep 'TLSv1\.2 with ADH, AECDH, or RC4: Yes')
         if [ "$varOutCheckTLSEnc_Summary" != "" ]; then varMarkThisBad="Y"; fi
       else
-        varOutCheckWeakCiphers=$(echo "$varLineInput" | grep ' - ' | grep -E 'SSLv2|SSLv3|TLSv1\.0.*.CBC| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH')
+        varOutCheckWeakCiphers=$(echo "$varLineInput" | grep ' - ' | grep -E 'SSLv2|SSLv3|TLSv1\.0|TLSv1\.1| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH')
         if [ "$varOutCheckWeakCiphers" != "" ]; then varMarkThisBad="Y"; fi      
       fi
 
@@ -744,6 +767,9 @@ while [ "$1" != "" ]; do
       ;;
     --do-sslscan )
       varDoSslScan="Y"
+      ;;
+    --no-server-checks )
+      varInclServerChecks="N"
       ;;
     * )
       echo; echo "Error: Unrecognized parameter."; fnUsage
