@@ -3,8 +3,9 @@
 # v1.0 - 1/23/2016 by Ted R (http://github.com/actuated)
 # v2.0 - 12/20/2016
 # Script to take an a file containing multiple sslscan results, and parse them for an HTML table of findings
+# 3/5/2017 - Added --no-links option, set font family to Arial and font size to 15px (11pt).
 varDateCreated="1/23/2016"
-varDateLastMod="12/20/2016"
+varDateLastMod="3/5/2017"
 
 # Create temporary directory for processing
 varYMDHMS=$(date +%F-%H-%M-%S)
@@ -22,6 +23,7 @@ varSkipColorFn="N"
 varDoSslScan="N"
 # Minimum width for minimal/inverted reports
 varMinTblWidth="750"
+varDoLinks="Y"
 
 function fnUsage {
   echo
@@ -52,6 +54,8 @@ function fnUsage {
   echo
   echo "--do-sslscan        Start by running 'sslscan --show-certificate'. Uses [input file] as"
   echo "                    the list of targets instead of a list of results."
+  echo
+  echo "--no-links          Don't create links for HTTPS hosts."
   echo
   echo "-h                  Displays this help/usage information."
   echo
@@ -136,9 +140,9 @@ function fnHTMLHead {
   echo "<style>" >> "$varOutputTemp"
   echo "table, td {border: 2px solid black;" >> "$varOutputTemp"
   echo "border-collapse: collapse;}" >> "$varOutputTemp"
-  echo "td {font-family: verdana, sans-serif;" >> "$varOutputTemp"
+  echo "td {font-family: arial, sans-serif;" >> "$varOutputTemp"
   echo "vertical-align: top;" >> "$varOutputTemp"
-  echo "font-size: small;}" >> "$varOutputTemp"
+  echo "font-size: 15px;}" >> "$varOutputTemp"
   echo "a {color: #000000;}" >> "$varOutputTemp"
   echo ".ssls-normal {color: #000000;}" >> "$varOutputTemp"
   if [ "$varDoColor" = "Y" ]; then
@@ -187,7 +191,7 @@ function fnCreateMinimalReport {
     echo "<td>" >> "$varOutputTemp"
     varThisHostAddr=$(echo "$varThisHost" | awk -F ":" '{print $1}')
     varThisHostPort=$(echo "$varThisHost" | awk -F ":" '{print $2}')
-    if [ "$varThisHostPort" = "443" ] || [ "$varThisHostPort" = "8443" ]; then
+    if [ "$varThisHostPort" = "443" ] || [ "$varThisHostPort" = "8443" ] && [ "$varDoLinks" = "Y" ]; then
       echo "<a href='https://$varThisHost' target='_blank'>$varThisHostAddr<br>Port $varThisHostPort</a>" >> "$varOutputTemp"
     else
       echo "$varThisHostAddr<br>Port $varThisHostPort" >> "$varOutputTemp"
@@ -385,7 +389,7 @@ function fnCreateSummaryReport {
     echo "<td>" >> "$varOutputTemp"
     varThisHostAddr=$(echo "$varThisHost" | awk -F ":" '{print $1}')
     varThisHostPort=$(echo "$varThisHost" | awk -F ":" '{print $2}')
-    if [ "$varThisHostPort" = "443" ] || [ "$varThisHostPort" = "8443" ]; then
+    if [ "$varThisHostPort" = "443" ] || [ "$varThisHostPort" = "8443" ] && [ "$varDoLinks" = "Y" ]; then
       echo "<a href='https://$varThisHost' target='_blank'>$varThisHostAddr<br>Port $varThisHostPort</a>" >> "$varOutputTemp"
     else
       echo "$varThisHostAddr<br>Port $varThisHostPort" >> "$varOutputTemp"
@@ -512,7 +516,7 @@ function fnCreateFullReport {
     echo "<td>" >> "$varOutputTemp"
     varThisHostAddr=$(echo "$varThisHost" | awk -F ":" '{print $1}')
     varThisHostPort=$(echo "$varThisHost" | awk -F ":" '{print $2}')
-    if [ "$varThisHostPort" = "443" ] || [ "$varThisHostPort" = "8443" ]; then
+    if [ "$varThisHostPort" = "443" ] || [ "$varThisHostPort" = "8443" ] && [ "$varDoLinks" = "Y" ]; then
       echo "<a href='https://$varThisHost' target='_blank'>$varThisHostAddr<br>Port $varThisHostPort</a>" >> "$varOutputTemp"
     else
       echo "$varThisHostAddr<br>Port $varThisHostPort" >> "$varOutputTemp"
@@ -914,6 +918,9 @@ while [ "$1" != "" ]; do
       ;;
     --do-sslscan )
       varDoSslScan="Y"
+      ;;
+    --no-links )
+      varDoLinks="N"
       ;;
     * )
       echo; echo "Error: Unrecognized parameter."; fnUsage
