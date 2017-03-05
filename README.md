@@ -22,3 +22,4 @@ You can provide a list of targets for the script to run `sslscan` against them f
 * **--no-color** disables the default behavior of coloring the 'bad' results red. This currently applies to session renegotion, heartbleed, weak ciphers, certificate expiration, and certificates using sha1/md5 or 1024 bit signature encryption.
 * **-h** - Displays help/usage information.
 * **-q** - "Quiet" option. Disables the confirmation prompt at the beginning of the script, as well as the prompt that asks you if you want to open the HTML file using `sensible-browser`.
+* **--no-links** - Don't create links for HTTPS hosts.
