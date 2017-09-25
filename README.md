@@ -23,3 +23,4 @@ You can provide a list of targets for the script to run `sslscan` against them f
 * **-h** - Displays help/usage information.
 * **-q** - "Quiet" option. Disables the confirmation prompt at the beginning of the script, as well as the prompt that asks you if you want to open the HTML file using `sensible-browser`.
 * **--no-links** - Don't create links for HTTPS hosts.
+* **--bad-ciphers** - Do not list "good" ciphers when listing all accepted ciphers.

@@ -4,8 +4,9 @@
 # v2.0 - 12/20/2016
 # Script to take an a file containing multiple sslscan results, and parse them for an HTML table of findings
 # 3/5/2017 - Added --no-links option, set font family to Arial and font size to 15px (11pt).
+# 9/25/2016 - Added compression check and --bad-ciphers option to hide good ciphers when listing accepted ones
 varDateCreated="1/23/2016"
-varDateLastMod="3/5/2017"
+varDateLastMod="9/25/2017"
 
 # Create temporary directory for processing
 varYMDHMS=$(date +%F-%H-%M-%S)
@@ -21,6 +22,7 @@ varReportMode="0"
 varDoColor="Y"
 varSkipColorFn="N"
 varDoSslScan="N"
+varHideGoodCiphers="N"
 # Minimum width for minimal/inverted reports
 varMinTblWidth="750"
 varDoLinks="Y"
@@ -50,10 +52,12 @@ function fnUsage {
   echo
   echo "-r [value]          Report format options. See details below for supported values."
   echo
-  echo "--no-color          Disable coloring 'bad' lines red."
+  echo "--bad-ciphers       Only show 'bad' ciphers when listing accepted ciphers."
   echo
   echo "--do-sslscan        Start by running 'sslscan --show-certificate'. Uses [input file] as"
   echo "                    the list of targets instead of a list of results."
+  echo
+  echo "--no-color          Disable coloring 'bad' lines red."
   echo
   echo "--no-links          Don't create links for HTTPS hosts."
   echo
@@ -70,6 +74,11 @@ function fnUsage {
   echo " 4  Summary report listing server checks, Yes/No summary, and cert info by host."
   echo " 5  Full report with all accepted ciphers listed."
   echo " 6  Full report with Yes/No summary for ciphers."
+  echo
+  echo "====================================[ 'bad' ciphers ]===================================="
+  echo 
+  echo "Anything with >128 bits of keyspace, SSLv2, SSLv3, TLSv1.0, TLSv1.1, ADH, AECDH, or RC4."
+  echo "In colorized results, TLSv1.1 will be orange instead of red."
   echo
   exit
 }
@@ -127,8 +136,13 @@ function fnDoCipherCell {
         fi
         ;;
       accepted )
-        varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
-        echo "$varGrep4" >> "$varOutputTemp"
+        if [ "$varHideGoodCiphers" = "N" ]; then
+          varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
+          echo "$varGrep4" >> "$varOutputTemp"
+        else
+          varGrep4=$(grep "$varThisHost" "$varSorted"| grep 'grep4Ciphers' | grep -E 'SSLv2|SSLv3|TLSv1\.0|TLSv1\.1| 0 bits| 40 bits| 56 bits| 112 bits|RC4|AECDH|ADH' | awk -F "," '{print "<font class=ssls-normal>&#8226;" $3 "</font><br>"}')
+          echo "$varGrep4" >> "$varOutputTemp"
+        fi
         ;;
     esac
 }
@@ -761,7 +775,8 @@ function fnColorize {
         varOutCheckSessionReneg=$(echo "$varLineInput" | grep 'Insecure session renegotiation supported')
         if [ "$varOutCheckSessionReneg" != "" ]; then varMarkThisBad="Y"; fi
 
-        # COMPRESSION
+        varOutCheckCompression=$(echo "$varLineInput" | grep 'Compression enabled')
+        if [ "$varOutCheckCompression" != "" ]; then varMarkThisBad="Y"; fi
 
         varOutCheckHeartbleed=$(echo "$varLineInput" | grep 'TLS 1\.. vulnerable to heartbleed')
         if [ "$varOutCheckHeartbleed" != "" ]; then varMarkThisBad="Y"; fi
@@ -921,6 +936,9 @@ while [ "$1" != "" ]; do
       ;;
     --no-links )
       varDoLinks="N"
+      ;;
+    --bad-ciphers )
+      varHideGoodCiphers="Y"
       ;;
     * )
       echo; echo "Error: Unrecognized parameter."; fnUsage
