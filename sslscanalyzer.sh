@@ -77,7 +77,7 @@ function fnUsage {
   echo
   echo "====================================[ 'bad' ciphers ]===================================="
   echo 
-  echo "Anything with >128 bits of keyspace, SSLv2, SSLv3, TLSv1.0, TLSv1.1, ADH, AECDH, or RC4."
+  echo "Anything with <128 bits of keyspace, SSLv2, SSLv3, TLSv1.0, TLSv1.1, ADH, AECDH, or RC4."
   echo "In colorized results, TLSv1.1 will be orange instead of red."
   echo
   exit
