@@ -4,7 +4,8 @@
 # v2.0 - 12/20/2016
 # Script to take an a file containing multiple sslscan results, and parse them for an HTML table of findings
 # 3/5/2017 - Added --no-links option, set font family to Arial and font size to 15px (11pt).
-# 9/25/2016 - Added compression check and --bad-ciphers option to hide good ciphers when listing accepted ones
+# 9/25/2017 - Added compression check and --bad-ciphers option to hide good ciphers when listing accepted ones
+# 9/25/2017 - Changed cipher column heading when --bad-ciphers is used
 varDateCreated="1/23/2016"
 varDateLastMod="9/25/2017"
 
@@ -987,6 +988,10 @@ case "$varReportMode" in
     varCipherText="Accepted Ciphers"
     ;;
 esac
+
+if [ "$varCipherText" = "Accepted Ciphers" ] && [ "$varHideGoodCiphers" = "Y" ]; then
+  varCipherText="Accepted Weak Ciphers"
+fi
 
 if [ "$varOutFileInput" != "" ]; then
   varOFIHTM=$(echo "$varOutFileInput" | grep -i '\.htm$')
