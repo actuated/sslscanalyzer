@@ -3,11 +3,12 @@
 # v1.0 - 1/23/2016 by Ted R (http://github.com/actuated)
 # v2.0 - 12/20/2016
 # Script to take an a file containing multiple sslscan results, and parse them for an HTML table of findings
-# 3/5/2017 - Added --no-links option, set font family to Arial and font size to 15px (11pt).
+# 3/5/2017 - Added --no-links option, set font family to Arial and font size to 15px (11pt)
 # 9/25/2017 - Added compression check and --bad-ciphers option to hide good ciphers when listing accepted ones
 # 9/25/2017 - Changed cipher column heading when --bad-ciphers is used
+# 1/27/2018 - Stylistic changes (font size, heading colors, table borders and padding)
 varDateCreated="1/23/2016"
-varDateLastMod="9/25/2017"
+varDateLastMod="1/27/2018"
 
 # Create temporary directory for processing
 varYMDHMS=$(date +%F-%H-%M-%S)
@@ -153,23 +154,27 @@ function fnHTMLHead {
   echo "<head>" >> "$varOutputTemp"
   echo "<title>sslscanalyzer.sh - Ted R (github: actuated)</title>" >> "$varOutputTemp"
   echo "<style>" >> "$varOutputTemp"
-  echo "table, td {border: 2px solid black;" >> "$varOutputTemp"
+  echo "table, td {border: 1px solid black;" >> "$varOutputTemp"
   echo "border-collapse: collapse;}" >> "$varOutputTemp"
   echo "td {font-family: arial, sans-serif;" >> "$varOutputTemp"
   echo "vertical-align: top;" >> "$varOutputTemp"
-  echo "font-size: 15px;}" >> "$varOutputTemp"
+  echo "font-size: 11pt;}" >> "$varOutputTemp"
   echo "a {color: #000000;}" >> "$varOutputTemp"
   echo ".ssls-normal {color: #000000;}" >> "$varOutputTemp"
   if [ "$varDoColor" = "Y" ]; then
     echo ".ssls-red {color: #FF0000;}" >> "$varOutputTemp"
     echo ".ssls-orange {color: #FF8033;}" >> "$varOutputTemp"
-    echo "td.heading {background-color: #3399FF;" >> "$varOutputTemp"
+    echo "td.heading {background-color: #404040;" >> "$varOutputTemp"
+    echo "color: #FFFFFF;" >> "$varOutputTemp"
     echo "font-weight: bold;}" >> "$varOutputTemp"
+    echo "a.heading {color: #FFFFFF;}" >> "$varOutputTemp"
   else
     echo ".ssls-red {color: #000000;}" >> "$varOutputTemp"
     echo ".ssls-orange {color: #000000;}" >> "$varOutputTemp"
-    echo "td.heading {background-color: #777777;" >> "$varOutputTemp"
+    echo "td.heading {background-color: #404040;" >> "$varOutputTemp"
+    echo "color: #FFFFFF;" >> "$varOutputTemp"
     echo "font-weight: bold;}" >> "$varOutputTemp"
+    echo "a.heading {color: #FFFFFF;}" >> "$varOutputTemp"
   fi
   echo "</style>" >> "$varOutputTemp"
   echo "</head>" >> "$varOutputTemp"
@@ -186,9 +191,9 @@ function fnCreateMinimalReport {
   # Write beginning of HTML file
   fnHTMLHead
   echo "<body>" >> "$varOutputTemp"
-  echo "<table cellpadding='4' width='$varMinTblWidth'>" >> "$varOutputTemp"
+  echo "<table cellpadding='2' width='$varMinTblWidth'>" >> "$varOutputTemp"
   echo "<tr>" >> "$varOutputTemp"
-  echo "<td colspan='2' class='heading'><font size='+1'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutputTemp"
+  echo "<td colspan='2' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank' class='heading'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutputTemp"
   echo "</tr>" >> "$varOutputTemp"
   echo "<tr>" >> "$varOutputTemp"
   echo "<td class='heading'>Host</td>" >> "$varOutputTemp"
@@ -245,9 +250,9 @@ function fnCreateInvertedReport {
   # Write beginning of HTML file
   fnHTMLHead
   echo "<body>" >> "$varOutputTemp"
-  echo "<table cellpadding='4' width='$varMinTblWidth'>" >> "$varOutputTemp"
+  echo "<table cellpadding='2' width='$varMinTblWidth'>" >> "$varOutputTemp"
   echo "<tr>" >> "$varOutputTemp"
-  echo "<td colspan='2' class='heading'><font size='+1'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutputTemp"
+  echo "<td colspan='2' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank' class='heading'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutputTemp"
   echo "</tr>" >> "$varOutputTemp"
   echo "<tr>" >> "$varOutputTemp"
   echo "<td class='heading'>Server Connections Accepted</td>" >> "$varOutputTemp"
@@ -382,9 +387,9 @@ function fnCreateSummaryReport {
   # Write beginning of HTML file
   fnHTMLHead
   echo "<body>" >> "$varOutputTemp"
-  echo "<table cellpadding='4'>" >> "$varOutputTemp"
+  echo "<table cellpadding='2'>" >> "$varOutputTemp"
   echo "<tr>" >> "$varOutputTemp"
-  echo "<td colspan='4' class='heading'><font size='+1'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutputTemp"
+  echo "<td colspan='4' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank' class='heading'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutputTemp"
   echo "</tr>" >> "$varOutputTemp"
   echo "<tr>" >> "$varOutputTemp"
   echo "<td class='heading'>Host</td>" >> "$varOutputTemp"
@@ -499,9 +504,9 @@ function fnCreateFullReport {
   # Write beginning of HTML file
   fnHTMLHead
   echo "<body>" >> "$varOutputTemp"
-  echo "<table cellpadding='4'>" >> "$varOutputTemp"
+  echo "<table cellpadding='2'>" >> "$varOutputTemp"
   echo "<tr>" >> "$varOutputTemp"
-  echo "<td colspan='10' class='heading'><font size='+1'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutputTemp"
+  echo "<td colspan='10' class='heading'><font size='+2'><center>sslscanalyzer.sh - <a href='https://github.com/actuated' target='_blank' class='heading'>Ted R (github: actuated)</a></center></font></td>" >> "$varOutputTemp"
   echo "</tr>" >> "$varOutputTemp"
   echo "<tr>" >> "$varOutputTemp"
   echo "<td rowspan='2' class='heading'>Host</td>" >> "$varOutputTemp"
