@@ -1,6 +1,9 @@
 # sslscanalyzer
 Shell script for converting an input file containing one or more `sslscan` results into HTML tables.
 
+# Note
+Retired. For HTML conversion for SSLScan 2.0 XML files, see https://github.com/actuated/xsltsslscan.
+
 # Usage
 You can provide a list of targets for the script to run `sslscan` against them for you, or provide your own input file of `sslscan` stdout.
 
